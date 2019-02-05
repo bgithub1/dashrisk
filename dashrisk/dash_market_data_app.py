@@ -19,8 +19,10 @@ from dashrisk import quantmod as qm
 import pandas as pd
 import base64
 import datetime
+import pytz
 import io 
 import pandas_datareader.data as pdr
+from datetime import tzinfo
 
 # Step 1: Define the app 
 app = dash.Dash('Dash Market Data',external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -31,6 +33,7 @@ app.css.append_css({'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'
 # Step 3: Define some often used variables
 TIME_COLUMN='Date'
 DEFAULT_PAGE_SIZE = 100 # number of rows to show
+DEFAULT_TIMEZONE = 'US/Eastern'
 
 # Step 4: Define a default dash DataTable, that will be used as a "placeholder"
 #         html element, and quickly replaced when we retrieve market data
@@ -49,12 +52,7 @@ DT_DEFAULT = dash_table.DataTable(
 #         The layout property of the app object defines all of the html that you will
 #            display in your app
 header_markdown = '''
-  **This Dash app implements the following features in Dash:**  
-  1) Chaining a dash_core_components.Graph element to button clicks from a dash_table.DataTable element;  
-  2) Using pandas_datareader to fetch daily stock data;  
-  3) Using dash_core_components.Store to cash pandas DataFrames so that those DataFrames can be the source of multiple dash_core_components components;  
-  4) Using the dash_core_components.Upload component as an alternate source of data to populate the pandas DataFrame of market data;  
-  5) Rendering dynamic pandas DataFrames, whose columns can change as you change read different csv files using Upload.  
+
 '''
 
 button_style={
@@ -72,7 +70,7 @@ button_style={
 app.layout = html.Div(
     [
         html.Div([
-              html.H3("Dash Market Data Examples"),
+              html.H3("Enter a Stock on left, or load a csv file using the upload button of the right"),
               dcc.Markdown(header_markdown)
               ],
               style={'margin': '5px'}
@@ -96,7 +94,8 @@ app.layout = html.Div(
             ],
         ),      
         dcc.Graph(id='my-graph'),
-        html.Div([html.H3("Data Table - Click Next or Previous buttons below to move graph")]),        
+        html.Div([html.H3("Data Table - Click Next or Previous to view data")]),        
+        html.Div([html.H6("For filtering, see: (https://dash.plot.ly/datatable/filtering)")]),        
         html.Div([DT_DEFAULT],id='dt'),
         dcc.Store(id='df_memory'),        
         # Hidden div inside the app that stores the intermediate value
@@ -152,9 +151,9 @@ def update_table(df_memory_dict):
         },
         pagination_mode='fe',
         sorting='fe',
-        filtering=False, #'fe',
+        filtering='fe',
         content_style='grow',
-        n_fixed_rows=1,
+        n_fixed_rows=2,
         style_table={'maxHeight':'400','overflowX': 'scroll'}
     )
     return dt
@@ -164,16 +163,17 @@ def update_table(df_memory_dict):
     Output('my-graph', 'figure'), 
     [
         Input(component_id='df_memory', component_property='data'),
-        Input(component_id='table', component_property='pagination_settings'),
+#         Input(component_id='table', component_property='pagination_settings'),
     ]
 )
-def update_graph(df_memory_dict,pagination_settings):
+# def update_graph(df_memory_dict,pagination_settings):
+def update_graph(df_memory_dict):
     df = pd.DataFrame(df_memory_dict)
-    page_size = pagination_settings['page_size']
-    cur_page = pagination_settings['current_page']
-    beg_row = cur_page * page_size
-    end_row = beg_row + page_size
-    df = df[beg_row:end_row]
+#     page_size = pagination_settings['page_size']
+#     cur_page = pagination_settings['current_page']
+#     beg_row = cur_page * page_size
+#     end_row = beg_row + page_size
+#     df = df[beg_row:end_row]
     df2 = df.copy()
     cols = df2.columns.values
     rename_dict = {c:c[0].upper()+c[1:] for c in cols}
@@ -228,14 +228,6 @@ def create_dash_return(df):
         'layout': {'margin': {'l': 40, 'r': 0, 't': 20, 'b': 30}}
     }
 
-def create_candlestick_chart(df):
-    dates = df[TIME_COLUMN].as_matrix().reshape(-1)
-    trace = go.Candlestick(x=df[TIME_COLUMN].as_matrix().reshape(-1),
-                           open=df.open.as_matrix().reshape(-1),
-                           high=df.high.as_matrix().reshape(-1),
-                           low=df.low.as_matrix().reshape(-1),
-                           close=df.close.as_matrix().reshape(-1))
-    data = [trace]    
 def parse_contents(contents):
     '''
     app.layout contains a dash_core_component object (dcc.Store(id='df_memory')), 
@@ -250,6 +242,21 @@ def parse_contents(contents):
     c_decoded = base64.b64decode(c)
     c_sio = io.StringIO(c_decoded.decode('utf-8'))
     df = pd.read_csv(c_sio)
+    # create a date column if there is not one, and there is a timestamp column instead
+    cols = df.columns.values
+    cols_lower = [c.lower() for c in cols] 
+    if 'date' not in cols_lower and 'timestamp' in cols_lower:
+        date_col_index = cols_lower.index('timestamp')
+        # make date column
+        def _extract_dt(t):
+            y = int(t[0:4])
+            mon = int(t[5:7])
+            day = int(t[8:10])
+            hour = int(t[11:13])
+            minute = int(t[14:16])
+            return datetime.datetime(y,mon,day,hour,minute,tzinfo=pytz.timezone(DEFAULT_TIMEZONE))
+        # create date
+        df['date'] = df.iloc[:,date_col_index].apply(_extract_dt)
     return df
 
 

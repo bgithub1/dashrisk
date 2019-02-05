@@ -16,6 +16,13 @@ h1, h2, h3, h4 {
     text-align: center;
 }
 
+h5,h6 {
+    background-color: #66b8dd;
+    color: white;
+    text-align: center;
+}
+
+
 .dcc_tab {
 	  display: inline-block;
 	  text-align: center;
