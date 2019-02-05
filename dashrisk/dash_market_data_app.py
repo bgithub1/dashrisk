@@ -13,6 +13,7 @@ import dash_core_components as dcc
 import dash_html_components as html
 import dash_table
 import plotly.graph_objs as go
+from dashrisk import quantmod as qm
 
 
 import pandas as pd
@@ -29,7 +30,7 @@ app.css.append_css({'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'
 
 # Step 3: Define some often used variables
 TIME_COLUMN='Date'
-DEFAULT_PAGE_SIZE = 50 # number of rows to show
+DEFAULT_PAGE_SIZE = 100 # number of rows to show
 
 # Step 4: Define a default dash DataTable, that will be used as a "placeholder"
 #         html element, and quickly replaced when we retrieve market data
@@ -48,12 +49,12 @@ DT_DEFAULT = dash_table.DataTable(
 #         The layout property of the app object defines all of the html that you will
 #            display in your app
 header_markdown = '''
-This Dash app implements the following features in Dash:  
-* Chaining a dash_core_components.Graph element to button clicks from a dash_table.DataTable element;   
-* Using pandas_datareader to fetch daily stock data;
-* Using dash_core_components.Store to cash pandas DataFrames so that those DataFrames can be the source of multiple dash_core_components components;
-* Using the dash_core_components.Upload component as an alternate source of data to populate the pandas DataFrame of market data;
-* Rendering dynamic pandas DataFrames, whose columns can change as you change read different csv files using Upload.
+  **This Dash app implements the following features in Dash:**  
+  1) Chaining a dash_core_components.Graph element to button clicks from a dash_table.DataTable element;  
+  2) Using pandas_datareader to fetch daily stock data;  
+  3) Using dash_core_components.Store to cash pandas DataFrames so that those DataFrames can be the source of multiple dash_core_components components;  
+  4) Using the dash_core_components.Upload component as an alternate source of data to populate the pandas DataFrame of market data;  
+  5) Rendering dynamic pandas DataFrames, whose columns can change as you change read different csv files using Upload.  
 '''
 
 button_style={
@@ -70,7 +71,12 @@ button_style={
 
 app.layout = html.Div(
     [
-        html.Div([html.H3("Dash Market Data Examples"),dcc.Markdown(header_markdown)]),
+        html.Div([
+              html.H3("Dash Market Data Examples"),
+              dcc.Markdown(header_markdown)
+              ],
+              style={'margin': '5px'}
+        ),
         html.Div([
                html.Span(
                     dcc.Input(id='stock_entered', type='text', value='XLK'),
@@ -90,7 +96,7 @@ app.layout = html.Div(
             ],
         ),      
         dcc.Graph(id='my-graph'),
-        html.Div([html.H3("Data Table")]),        
+        html.Div([html.H3("Data Table - Click Next or Previous buttons below to move graph")]),        
         html.Div([DT_DEFAULT],id='dt'),
         dcc.Store(id='df_memory'),        
         # Hidden div inside the app that stores the intermediate value
@@ -146,9 +152,10 @@ def update_table(df_memory_dict):
         },
         pagination_mode='fe',
         sorting='fe',
-        filtering='fe',
+        filtering=False, #'fe',
         content_style='grow',
-        style_table={'maxHeight':'200','overflowX': 'scroll'}
+        n_fixed_rows=1,
+        style_table={'maxHeight':'400','overflowX': 'scroll'}
     )
     return dt
 
@@ -167,7 +174,15 @@ def update_graph(df_memory_dict,pagination_settings):
     beg_row = cur_page * page_size
     end_row = beg_row + page_size
     df = df[beg_row:end_row]
-    return create_dash_return(df)
+    df2 = df.copy()
+    cols = df2.columns.values
+    rename_dict = {c:c[0].upper()+c[1:] for c in cols}
+    df2 = df2.rename(columns=rename_dict)
+    df2.index = df2.Date
+    ch = qm.Chart(df2)
+    fig = ch.to_figure(width=1100)
+    return fig
+#     return create_dash_return(df)
 
 
 # Step 7:  Define various helper methods
