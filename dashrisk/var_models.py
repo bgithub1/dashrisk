@@ -157,18 +157,18 @@ if __name__ == '__main__':
 
     df_portfolio = pd.DataFrame({'symbol':symbols,'position':positions})[['symbol','position']]
     
-#     vm = VarModel(df_portfolio=df_portfolio)
-#     var_dict = vm.compute_var()
-#     port_var = var_dict['port_var']
-#     df_positions = var_dict['df_positions']
-#     sp_dollar_equiv = var_dict['sp_dollar_equiv']
-#     print(f'portolio VaR: {round(port_var,2)}')
-#     print(f'Equivalent S&P position (in dollars): {round(sp_dollar_equiv,2)}')
-#     print(df_positions)
-#     print(vm.df_corr)
-#     print(vm.df_std)
+    vm = VarModel(df_portfolio=df_portfolio)
+    var_dict = vm.compute_var()
+    port_var = var_dict['port_var']
+    df_positions = var_dict['df_positions']
+    sp_dollar_equiv = var_dict['sp_dollar_equiv']
+    print(f'portolio VaR: {round(port_var,2)}')
+    print(f'Equivalent S&P position (in dollars): {round(sp_dollar_equiv,2)}')
+    print(df_positions)
+    print(vm.df_corr)
+    print(vm.df_std)
 
-    vm = VarModel(df_portfolio=df_portfolio,history_fetcher=BarChartFetcher30Min())
+    vm = VarModel(df_portfolio=df_portfolio,bars_per_day=8*2,history_fetcher=BarChartFetcher30Min())
     var_dict = vm.compute_var()
     port_var = var_dict['port_var']
     df_positions = var_dict['df_positions']
