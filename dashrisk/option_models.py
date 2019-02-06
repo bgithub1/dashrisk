@@ -1,6 +1,8 @@
 '''
 Created on Feb 5, 2019
 
+Options models to create prices and greeks
+
 @author: bperlman1
 '''
 
