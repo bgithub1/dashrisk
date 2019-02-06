@@ -40,6 +40,8 @@ class BaseModel():
     REFERENCE_VOL = .2
     ONE_DAY_SCAL = (1/365.0)**.5
     ATM_PERCENT_CHANGE_PER_VOL = (.001/(REFERENCE_VOL))
+    VOL_PERCENT_CHANGE = .01
+    INTEREST_TO_CHANGE = .001
     DEFAULT_TIMEZONE = pytz.timezone('US/Eastern')
     
     def __init__(self,expiry_datetime,strike,c_p,atm_price,input_vol,rate,carry=None,time_zone=None):
@@ -99,7 +101,40 @@ class BaseModel():
         d = ((op-op_down) - (op - op_up)) / (2*price_move)
         return d
         
+    def get_vega(self):
+        op = self.get_option_price()         
+        vol_perc_to_move = BaseModel.VOL_PERCENT_CHANGE
+        model_up = self.clone()     
+        model_up.input_vol =  self.input_vol + vol_perc_to_move  
+        op_up = model_up.get_option_price() 
+        model_down = self.clone()        
+        model_down.input_vol =  self.input_vol - vol_perc_to_move  
+        op_down = model_down.get_option_price() 
+        v = ((op-op_down) - (op - op_up)) / (2)
+        return v
         
+    def get_theta(self):
+        op = self.get_option_price()         
+        dte_change = 1/365.0
+        model_down = self.clone()        
+        model_down.dte =  self.dte - dte_change  
+        op_down = model_down.get_option_price() 
+        t = op-op_down
+        return t
+
+    def get_rho(self):
+        op = self.get_option_price()         
+        int_to_move = BaseModel.INTEREST_TO_CHANGE
+        model_up = self.clone()     
+        model_up.rate =  self.rate + int_to_move  
+        op_up = model_up.get_option_price() 
+        model_down = self.clone()        
+        model_down.rate =  self.rate - int_to_move  
+        op_down = model_down.get_option_price() 
+        r = ((op-op_down) - (op - op_up)) / (2) * .01/BaseModel.INTEREST_TO_CHANGE
+        return r
+
+
 class BsModel(BaseModel):
     def __init__(self,expiry_datetime,strike,c_p,atm_price,input_vol,rate,carry=None,time_zone=None):
         super(BsModel,self).__init__(expiry_datetime,strike,c_p,atm_price,input_vol,rate,carry,time_zone)
@@ -110,17 +145,28 @@ class BsModel(BaseModel):
 
 
 if __name__=='__main__':
+    pc = 'c'
+    s = 100
+    k = 100
+    vol = .2
+    r = .03
+    car = 0
     expiry_date = datetime.datetime.now().replace(tzinfo=BaseModel.DEFAULT_TIMEZONE) - datetime.timedelta(30)
-    m = BaseModel(expiry_date, 100.0, 'c', 100.0, .2, .03, 0)
+    m = BaseModel(expiry_date,s,pc,k,vol,r,car)
     p = m.get_option_price()
     d = m.get_delta()
     g = m.get_gamma()
-    print(p,d,g)
-    m = BsModel(expiry_date, 100.0, 'c', 100.0, .2, .03, 0)
+    v = m.get_vega()
+    t = m.get_theta()
+    rh = m.get_rho()
+    print(p,d,g,v,t,rh)
+    
+    m = BaseModel(expiry_date,s,pc,k,vol,r-.01,car)
     p = m.get_option_price()
-    d = m.get_delta()
-    g = m.get_gamma()
-    print(p,d,g)
+    print(p)
+    m = BaseModel(expiry_date,s,pc,k,vol,r+.01,car)
+    p = m.get_option_price()
+    print(p)
     
     
         
