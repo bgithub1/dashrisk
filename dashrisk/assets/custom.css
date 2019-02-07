@@ -29,6 +29,12 @@ h5,h6 {
 	  background-color: #53f74b;
 }
 
+.var_results_tab {
+      display: inline-block;
+      text-align: center;
+      background-color: #42f4e2;
+}
+
 .div-centered {
   position: absolute; 
   left: 0; 

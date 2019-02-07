@@ -8,7 +8,6 @@ Show an example of using Dash (https://dash.plot.ly/) to calculate Greeks
 @author: Bill Perlman
 '''
 
-
 import dash
 from dash.dependencies import Input, Output, State
 import dash_bootstrap_components as dbc
@@ -18,7 +17,6 @@ import dash_table
 import plotly.graph_objs as go
 
 import pandas as pd
-import math
 import base64
 import datetime
 import pytz
@@ -80,16 +78,6 @@ button_style={
     'margin': '2px'
 }
 
-var_profile_style={
-    'width': '49%',
-    'height': '40px',
-    'lineHeight': '40px',
-    'borderWidth': '1px',
-    'borderStyle': 'dashed',
-    'borderRadius': '1px',
-    'textAlign': 'center',
-    'margin': '2px'
-}
 
 app.layout = html.Div(
     [
@@ -101,7 +89,7 @@ app.layout = html.Div(
                html.Span(
                     dcc.Upload(
                         id='upload-data',
-                        children=html.Div(['',html.A('SELECT A PORTFOLIO CSV FILE')],id='select_div'),
+                        children=html.Div(['',html.A('Select a Portfolio Csv File')],id='select_div'),
                         # Allow multiple files to be uploaded
                         multiple=False,
                     ),
@@ -115,24 +103,11 @@ app.layout = html.Div(
                 ),
             ],
         ),      
-        html.Div([
-               html.Span(
-                    html.Div(['Portfolio 1/99 VaR = 0'],id='pvar_div'),
-                    className='var_results_tab',
-                    style=button_style,                         
-                ),
-               html.Span(
-                    html.Div(['S&P500 Equivilant Position = 0'],id='sp_eq_div'),
-                    className='var_results_tab',
-                    style=button_style,                         
-                ),
-            ],
-        ),      
         html.Div([html.H6("Risk Profile")]),        
         html.Div([DT_DEFAULT],id='dt'),
         html.Div([html.H6("Var Profile")]),       
         dcc.Graph(id='my-graph'),
-        dcc.Store(id='var_dict'),        
+        dcc.Store(id='df_memory'),        
         # Hidden div inside the app that stores the intermediate value
         html.Div(id='intermediate_value', style={'display': 'none'}),
 #         dcc.Interval(
@@ -159,9 +134,10 @@ def  update_filename(filename):
     return f'portfolio loaded: {filename}'
     
 
+
 # step 6.1 update memory after getting new data
 @app.callback(
-    Output('var_dict', 'data'), 
+    Output('df_memory', 'data'), 
     [
         Input('upload-data', 'contents'),
     ],
@@ -169,7 +145,7 @@ def  update_filename(filename):
 def  update_memory(contents):
     if contents is None:
         print('contents is None')
-        return {'df_positions':DF_NO_POSITION.to_dict('rows'),'port_var':0,'sp_dollar_equiv':0}
+        return DF_NO_POSITION.to_dict("rows")
     df = parse_contents(contents)
     print(f'Start computing VaR {datetime.datetime.now()}')
     vm = varm.VarModel(df)
@@ -178,8 +154,7 @@ def  update_memory(contents):
     df_positions = var_dict['df_positions']
     sp_dollar_equiv = var_dict['sp_dollar_equiv']  
     print(f'End computing VaR {datetime.datetime.now()}')
-#     return df_positions.to_dict("rows")
-    return {'df_positions':df_positions.to_dict('rows'),'port_var':port_var,'sp_dollar_equiv':sp_dollar_equiv}
+    return df_positions.to_dict("rows")
 
 
 
@@ -187,11 +162,11 @@ def  update_memory(contents):
 @app.callback(
     Output('dt', 'children'), 
     [
-        Input(component_id='var_dict', component_property='data'),
+        Input(component_id='df_memory', component_property='data'),
     ]
 )
-def update_table(var_dict):
-    df = pd.DataFrame(var_dict['df_positions'])
+def update_table(df_memory_dict):
+    df = pd.DataFrame(df_memory_dict)
 #     cols = list(set(['symbol','position','position_var','unit_var','stdev','close']).intersection(set(df.columns.values)))
     cols = ['symbol','position','position_var','unit_var','stdev','close']
     df = df[cols]
@@ -224,11 +199,11 @@ def update_table(var_dict):
 @app.callback(
     Output('my-graph', 'figure'), 
     [
-        Input(component_id='var_dict', component_property='data'),
+        Input(component_id='df_memory', component_property='data'),
     ]
 )
-def update_graph(var_dict):
-    df = pd.DataFrame(var_dict['df_positions'])    
+def update_graph(df_memory_dict):
+    df = pd.DataFrame(df_memory_dict)    
     x_vals=df.symbol.as_matrix().reshape(-1)
     y_vals=df.position_var.as_matrix().reshape(-1)
         
@@ -239,30 +214,6 @@ def update_graph(var_dict):
         )])
     
     return fig
-
-
-@app.callback(
-    Output('pvar_div', 'children'), 
-    [
-        Input(component_id='var_dict', component_property='data'),
-    ]
-)
-def  update_pvar_div(var_dict):
-    port_var = round(float(var_dict['port_var']),3)
-    return f"Portfolio VaR = {port_var}"
-
-
-@app.callback(
-    Output('sp_eq_div', 'children'), 
-    [
-        Input(component_id='var_dict', component_property='data'),
-    ]
-)
-def  update_sp_eq_div(var_dict):
-    sp_dollar_equiv = round(float(var_dict['sp_dollar_equiv']),3)
-    return f"S&P500 Equivilant Position = {sp_dollar_equiv}"
-
-
 #     return create_dash_return(df)
 
 # # Step 6.4 update Interval
