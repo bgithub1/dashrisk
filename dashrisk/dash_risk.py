@@ -13,8 +13,6 @@ import dash_core_components as dcc
 import dash_html_components as html
 import dash_table
 import plotly.graph_objs as go
-from dashrisk import quantmod as qm
-
 
 import pandas as pd
 import base64
@@ -22,7 +20,7 @@ import datetime
 import pytz
 import io 
 import pandas_datareader.data as pdr
-from datetime import tzinfo
+from dashrisk import var_models as varm
 
 # Step 1: Define the app 
 app = dash.Dash('Dash Risk',external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -56,7 +54,7 @@ header_markdown = '''
 '''
 
 button_style={
-    'width': '49.5%',
+    'width': '99.5%',
     'height': '40px',
     'lineHeight': '40px',
     'borderWidth': '1px',
@@ -70,16 +68,14 @@ button_style={
 app.layout = html.Div(
     [
         html.Div([
-              html.H3("Load a csv file containing your portfolio"),
-              dcc.Markdown(header_markdown)
-              ],
+              html.H3("Load a csv file containing your portfolio")],
               style={'margin': '5px'}
         ),
         html.Div([
                html.Span(
                     dcc.Upload(
                         id='upload-data',
-                        children=html.Div(['Drag and Drop or ',html.A('Select Files')]),
+                        children=html.Div(['',html.A('Select a Portfolio Csv File')]),
                         # Allow multiple files to be uploaded
                         multiple=False,
                     ),
@@ -88,9 +84,10 @@ app.layout = html.Div(
                 ),
             ],
         ),      
-        html.Div([html.H3("Data Table - Click Next or Previous to view data")]),        
-        html.Div([html.H6("For filtering, see: (https://dash.plot.ly/datatable/filtering)")]),        
+        html.Div([html.H6("Risk Profile")]),        
         html.Div([DT_DEFAULT],id='dt'),
+        html.Div([html.H6("Var Profile")]),       
+        dcc.Graph(id='my-graph'),
         dcc.Store(id='df_memory'),        
         # Hidden div inside the app that stores the intermediate value
         html.Div(id='intermediate_value', style={'display': 'none'}),
@@ -103,27 +100,20 @@ app.layout = html.Div(
 @app.callback(
     Output('df_memory', 'data'), 
     [
-        Input(component_id='stock_entered', component_property='n_submit'),
         Input('upload-data', 'contents'),
     ],
-    [
-        State(component_id='stock_entered', component_property='value'),
-        State(component_id='stock_entered', component_property='n_submit_timestamp'),
-    ]
 )
-def update_memory(n_submit,contents,stock_entered_data,n_submit_timestamp):
-    dt_now = datetime.datetime.utcnow().timestamp()
-    dt_submit = (datetime.datetime.strptime(n_submit_timestamp,'%Y-%m-%dT%H:%M:%S.%fZ') if n_submit_timestamp is not None else datetime.datetime(1970,1,1)).timestamp()
-    dt_diff = dt_now - dt_submit
-    print(dt_submit,dt_now,dt_diff)
-    if contents is not None and dt_diff > .7:
-        print('getting data from upload')
-        df = parse_contents(contents)
+def update_memory(contents):
+    if contents is None:
+        df = pd.read_csv('test_portfolio.csv')
     else:
-        print(f'getting {str(stock_entered_data)}')
-        sym = stock_entered_data    #
-        df = get_df(sym)
-    return df.to_dict("rows")
+        df = parse_contents(contents)
+    vm = varm.VarModel(df)
+    var_dict = vm.compute_var()
+    port_var = var_dict['port_var']
+    df_positions = var_dict['df_positions']
+    sp_dollar_equiv = var_dict['sp_dollar_equiv']        
+    return df_positions.to_dict("rows")
 
 
 # Step 6.2: update html DataTable
@@ -135,6 +125,8 @@ def update_memory(n_submit,contents,stock_entered_data,n_submit_timestamp):
 )
 def update_table(df_memory_dict):
     df = pd.DataFrame(df_memory_dict)
+    df = df[['symbol','position','position_var','unit_var','stdev','close']]
+
     dt = dash_table.DataTable(
         id='table',
         columns=[{"name": i, "id": i} for i in df.columns],
@@ -157,24 +149,16 @@ def update_table(df_memory_dict):
     Output('my-graph', 'figure'), 
     [
         Input(component_id='df_memory', component_property='data'),
-#         Input(component_id='table', component_property='pagination_settings'),
     ]
 )
 # def update_graph(df_memory_dict,pagination_settings):
 def update_graph(df_memory_dict):
-    df = pd.DataFrame(df_memory_dict)
-#     page_size = pagination_settings['page_size']
-#     cur_page = pagination_settings['current_page']
-#     beg_row = cur_page * page_size
-#     end_row = beg_row + page_size
-#     df = df[beg_row:end_row]
-    df2 = df.copy()
-    cols = df2.columns.values
-    rename_dict = {c:c[0].upper()+c[1:] for c in cols}
-    df2 = df2.rename(columns=rename_dict)
-    df2.index = df2.Date
-    ch = qm.Chart(df2)
-    fig = ch.to_figure(width=1100)
+    df = pd.DataFrame(df_memory_dict)    
+    fig = go.Figure(data = [go.Bar(
+                x=df.symbol.as_matrix().reshape(-1),
+                y=df.position_var.as_matrix().reshape(-1)
+        )])
+    
     return fig
 #     return create_dash_return(df)
 

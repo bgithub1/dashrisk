@@ -6,14 +6,21 @@ Created on Feb 5, 2019
 import pandas_datareader.data as pdr
 import pandas as pd
 import datetime
-from dashrisk import barchart_api as bcapi
-import datetime
 import pytz
+from dashrisk import barchart_api as bcapi
 
 class YahooFetcher():
     def __init__(self):
-        pass
+        self.history_dict = {}
+
+    def fetch_histories(self,symbol_list,dt_beg,dt_end):
+        for symbol in symbol_list:
+            if symbol in self.history_dict:
+                continue
+            self.fetch_history(symbol, dt_beg, dt_end)
     def fetch_history(self,symbol,dt_beg,dt_end):
+        if symbol in self.history_dict:
+            return self.history_dict[symbol]            
         df = pdr.DataReader(symbol, 'yahoo', dt_beg, dt_end)
         # move index to date column, sort and recreate index
         df['date'] = df.index
@@ -25,6 +32,7 @@ class YahooFetcher():
         cols = df.columns.values 
         cols_dict = {c:c[0].lower() + c[1:] for c in cols}
         df = df.rename(columns = cols_dict)
+        self.history_dict[symbol] = df
         return df
     
 
@@ -35,8 +43,18 @@ class BarChartFetcher30Min():
         self.interval = 30 if interval is None else interval
         self.endpoint_type = 'free_url' if endpoint_type is None else endpoint_type
         self.bch = bcapi.BcHist(self.api_key, bar_type=self.bar_type, interval=self.interval,endpoint_type = self.endpoint_type)
-    #
+        self.history_dict = {}
+        
+    def fetch_histories(self,symbol_list,dt_beg,dt_end):
+        for symbol in symbol_list:
+            if symbol in self.history_dict:
+                continue
+            self.fetch_history(symbol, dt_beg, dt_end)
+
+    # fetch history for a symbol
     def fetch_history(self,symbol,dt_beg,dt_end,interval=1):
+        if symbol in self.history_dict:
+            return self.history_dict[symbol]            
         y = dt_beg.year 
         m = dt_beg.month 
         d = dt_beg.day 
@@ -61,7 +79,10 @@ class BarChartFetcher30Min():
             return dt 
         df['date'] = df.timestamp.apply(_make_date)
         df = df.drop(['timestamp'],axis=1)
+        self.history_dict[symbol] = df
         return df
+    
+    
 
 
 class VarModel():
@@ -156,13 +177,12 @@ if __name__ == '__main__':
     positions = [t[1] for t in positions_tuple]
 
     df_portfolio = pd.DataFrame({'symbol':symbols,'position':positions})[['symbol','position']]
-    
     vm = VarModel(df_portfolio=df_portfolio)
     var_dict = vm.compute_var()
     port_var = var_dict['port_var']
     df_positions = var_dict['df_positions']
-    sp_dollar_equiv = var_dict['sp_dollar_equiv']
-    print(f'portolio VaR: {round(port_var,2)}')
+    sp_dollar_equiv = var_dict['sp_dollar_equiv']    
+    print(f"portolio VaR: {round(port_var,2)}")
     print(f'Equivalent S&P position (in dollars): {round(sp_dollar_equiv,2)}')
     print(df_positions)
     print(vm.df_corr)
