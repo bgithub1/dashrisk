@@ -89,7 +89,7 @@ class FixedRateModel():
     
     def __init__(self):
         # see if you can get Libor from the FRED API
-        n = datetime.datetime.now() - datetime.timedelta(7)
+        n = datetime.datetime.now() - datetime.timedelta(14)
         y = n.year
         m = n.month
         d = n.day

@@ -248,6 +248,53 @@ def yyyymmddhhmm_from_datetime(dt):
     yyyymmddhhmm = str('%04d%02d%02d%02d%02d' %(year,mon,day,hour,minute))
     return yyyymmddhhmm
 
+def get_greeks(symbol,atm_price,op_model=None):
+    '''
+    Create pandas DataTable where columns are underlying, yyyymmddhhmm_expiry strike, delta, gamma, vega, theta, rho, and implied_vol
+    :param df_portfolio:
+    '''
+    m = model_from_symbol(symbol,atm_price,model=op_model)
+    p = m.get_option_price()
+    d = m.get_delta()
+    g = m.get_gamma()
+    v = m.get_vega()
+    t = m.get_theta()
+    rh = m.get_rho()
+    underlying = symbol.split('_')[0]
+    return {
+        'symbol':symbol,
+        'underlying':underlying,
+        'option_price':p,
+        'delta':d,
+        'gamma':g, 
+        'vega':v,
+        'theta':t,
+        'rho':rh
+        }
+def get_df_greeks(df_portfolio,df_atm_price,model_per_underlying_dict):
+    dfp = df_portfolio.copy()
+    if 'underlying' not in dfp.columns.values:
+        dfp['underlying'] = dfp.apply(lambda r: r.symbol.split('_')[0],axis=1)
+        
+    df_all = dfp.merge(df_atm_price,how='inner',on='underlying')
+    greek_cols = ['delta','gamma','vega','theta','rho']
+    def _greeks(row):
+        symbol = row.symbol
+        atm_price =row.price 
+        size = row.position
+        op_model = model_per_underlying_dict[row.underlying]
+        greeks = get_greeks(symbol, atm_price, op_model)
+        for g in greek_cols:
+            greeks[g] = greeks[g] * size
+        s = pd.Series(greeks)
+        return s
+    df_greeks = df_all.apply(_greeks,axis=1)
+    df_greeks = df_greeks[['symbol','underlying','option_price','delta','gamma','vega','theta','rho']]
+    cols_no_symbol =[c for c in df_greeks.columns.values if c not in ['symbol','option_price']]
+    df_greeks_totals = df_greeks[cols_no_symbol].groupby('underlying').sum()
+    
+    return {'df_greeks':df_greeks,'df_greeks_totals':df_greeks_totals}
+ 
 if __name__=='__main__':
     pc = 'c'
     s = 100
@@ -302,5 +349,20 @@ if __name__=='__main__':
     rh = m.get_rho()
     print(f'basic model call price using model_from_symbol({sym})',p,d,g,v,t,rh)
     
+    yyyymmddhhmm = yyyymmddhhmm_from_datetime(expiry_date)
+    op_syms = [f'SPY_{yyyymmddhhmm}_255_c',f'SPY_{yyyymmddhhmm}_255_p',
+               f'SPY_{yyyymmddhhmm}_260_c',f'SPY_{yyyymmddhhmm}_260_p',
+               f'SPY_{yyyymmddhhmm}_265_c',f'SPY_{yyyymmddhhmm}_265_p',
+               f'USO_{yyyymmddhhmm}_10_c',f'USO_{yyyymmddhhmm}_10_p',
+               f'USO_{yyyymmddhhmm}_10.5_c',f'USO_{yyyymmddhhmm}_10.5_p',
+               f'USO_{yyyymmddhhmm}_11_c',f'USO_{yyyymmddhhmm}_11_p',
+               ]
+    df_portfolio = pd.DataFrame({'symbol':op_syms,'position':[10,-10,10,-10,10,-10,10,-10,10,-10,10,-10]})
+    
+    df_atm_price = pd.DataFrame({'underlying':['SPY','USO'],'price':[260,10.5]})
+    model_per_underlying_dict = {'SPY':BsModel,'USO':BsModel}
+    greeks_dict = get_df_greeks(df_portfolio, df_atm_price, model_per_underlying_dict)
+    print(greeks_dict['df_greeks'])
+    print(greeks_dict['df_greeks_totals'])
     
         

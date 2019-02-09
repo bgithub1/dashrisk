@@ -35,8 +35,10 @@ NO_POSITION = {
     'unit_var':[0],
     'stdev':[0],
     'close':[0],
-}               
-DF_NO_POSITION = pd.read_csv('test_portfolio2.csv') #pd.DataFrame(NO_POSITION)
+}
+
+DEFAULT_PORTFOLIO_NAME=  'test_portfolio2.csv'             
+DF_NO_POSITION = pd.read_csv(DEFAULT_PORTFOLIO_NAME) #pd.DataFrame(NO_POSITION)
 
 # Step 1: Define the app 
 app = dash.Dash('Dash Risk',external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -118,7 +120,7 @@ app.layout = html.Div(
                     style=button_style,                         
                 ),
                html.Span(
-                    html.Div(['no portfolio loaded'],id='portfolio_name'),
+                    html.Div([DEFAULT_PORTFOLIO_NAME],id='portfolio_name'),
                     className='dcc_tab',
                     style=button_style,                         
                 ),
