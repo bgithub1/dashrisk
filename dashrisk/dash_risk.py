@@ -18,7 +18,6 @@ import dash_table
 import plotly.graph_objs as go
 
 import pandas as pd
-import math
 import base64
 import datetime
 import pytz
@@ -30,13 +29,14 @@ from dashrisk import var_models as varm
 
 NO_POSITION = {
     'symbol':['no_position'],
+    'underlying':['no_position'],
     'position':[0],
     'position_var':[0],
     'unit_var':[0],
     'stdev':[0],
     'close':[0],
 }               
-DF_NO_POSITION = pd.DataFrame(NO_POSITION)
+DF_NO_POSITION = pd.read_csv('test_portfolio2.csv') #pd.DataFrame(NO_POSITION)
 
 # Step 1: Define the app 
 app = dash.Dash('Dash Risk',external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -62,6 +62,16 @@ DT_DEFAULT = dash_table.DataTable(
     filtering=False, # 'fe',
 )
 
+DT_DEFAULT_2 = dash_table.DataTable(
+    id='table_2',
+    pagination_settings={
+        'current_page': 0,
+        'page_size': DEFAULT_PAGE_SIZE
+    },
+    pagination_mode='fe',
+    sorting='fe',
+    filtering=False, # 'fe',
+)
 # Step 5: !!!! DEFINE THE app.layout !!!!!!
 #         The layout property of the app object defines all of the html that you will
 #            display in your app
@@ -70,7 +80,7 @@ header_markdown = '''
 '''
 
 button_style={
-    'width': '49%',
+    'width': '49.5%',
     'height': '40px',
     'lineHeight': '40px',
     'borderWidth': '1px',
@@ -81,7 +91,7 @@ button_style={
 }
 
 var_profile_style={
-    'width': '49%',
+    'width': '49.5%',
     'height': '40px',
     'lineHeight': '40px',
     'borderWidth': '1px',
@@ -95,7 +105,6 @@ app.layout = html.Div(
     [
         html.Div([
               html.H4("Position Risk Analysis")],
-              style={'margin': '5px'}
         ),
         html.Div([
                html.Span(
@@ -109,7 +118,7 @@ app.layout = html.Div(
                     style=button_style,                         
                 ),
                html.Span(
-                    html.Div(['no portfolio loaded'],id='progress_div'),
+                    html.Div(['no portfolio loaded'],id='portfolio_name'),
                     className='dcc_tab',
                     style=button_style,                         
                 ),
@@ -129,9 +138,11 @@ app.layout = html.Div(
             ],
         ),      
         html.Div([html.H6("Risk Profile")]),        
-        html.Div([DT_DEFAULT],id='dt'),
+        html.Div([DT_DEFAULT],id='dt',style={'margin': '10px'}),
         html.Div([html.H6("Var Profile")]),       
         dcc.Graph(id='my-graph'),
+        html.Div([html.H6("Original Position")]),        
+        html.Div([DT_DEFAULT_2],id='dt_pos',style={'margin': '10px'}),
         dcc.Store(id='var_dict'),        
         # Hidden div inside the app that stores the intermediate value
         html.Div(id='intermediate_value', style={'display': 'none'}),
@@ -142,13 +153,14 @@ app.layout = html.Div(
 #             max_intervals=1
 #         )
         
-    ], 
+    ],
+    style = {'margin':'1px'} 
 )
 
 # Step 6:  Define all of your callbacks
 # step 6. update file name
 @app.callback(
-    Output('progress_div', 'children'), 
+    Output('portfolio_name', 'children'), 
     [
         Input('upload-data', 'filename'),
     ],
@@ -169,13 +181,15 @@ def  update_filename(filename):
 def  update_memory(contents):
     if contents is None:
         print('contents is None')
-        return {'df_positions':DF_NO_POSITION.to_dict('rows'),'port_var':0,'sp_dollar_equiv':0}
-    df = parse_contents(contents)
+#         return {'df_positions':DF_NO_POSITION.to_dict('rows'),'port_var':0,'sp_dollar_equiv':0}
+        df = DF_NO_POSITION.copy()
+    else:
+        df = parse_contents(contents)
     print(f'Start computing VaR {datetime.datetime.now()}')
     vm = varm.VarModel(df)
     var_dict = vm.compute_var()
     port_var = var_dict['port_var']
-    df_positions = var_dict['df_positions']
+    df_positions = var_dict['df_underlying_positions']
     sp_dollar_equiv = var_dict['sp_dollar_equiv']  
     print(f'End computing VaR {datetime.datetime.now()}')
 #     return df_positions.to_dict("rows")
@@ -190,12 +204,11 @@ def  update_memory(contents):
         Input(component_id='var_dict', component_property='data'),
     ]
 )
-def update_table(var_dict):
-    df = pd.DataFrame(var_dict['df_positions'])
-#     cols = list(set(['symbol','position','position_var','unit_var','stdev','close']).intersection(set(df.columns.values)))
-    cols = ['symbol','position','position_var','unit_var','stdev','close']
+def update_table(data):
+    df = pd.DataFrame(data['df_positions'])
+    cols = ['underlying','position','position_var','unit_var','stdev','close']
     df = df[cols]
-    cols_no_sym = [c for c in cols if c != 'symbol']
+    cols_no_sym = [c for c in cols if c != 'underlying']
     for c in cols_no_sym:
         df[c] = df[c].round(3)
     dt = dash_table.DataTable(
@@ -229,7 +242,7 @@ def update_table(var_dict):
 )
 def update_graph(var_dict):
     df = pd.DataFrame(var_dict['df_positions'])    
-    x_vals=df.symbol.as_matrix().reshape(-1)
+    x_vals=df.underlying.as_matrix().reshape(-1)
     y_vals=df.position_var.as_matrix().reshape(-1)
         
 
@@ -265,9 +278,47 @@ def  update_sp_eq_div(var_dict):
 
 #     return create_dash_return(df)
 
-# # Step 6.4 update Interval
+
+# Step 6.4: update html DataTable
+@app.callback(
+    Output('dt_pos', 'children'), 
+    [
+        Input('upload-data', 'contents'),
+    ]
+)
+def update_orignal_positions(contents):
+    if contents is None:
+        df = DF_NO_POSITION.copy()
+    else:
+        df = parse_contents(contents)
+    cols = ['symbol','position']
+    df = df[cols]
+    dt2 = dash_table.DataTable(
+        id='table_2',
+        style_data={'whiteSpace': 'normal'},
+        css=[{
+            'selector': '.dash-cell div.dash-cell-value',
+            'rule': 'display: inline; white-space: inherit; overflow: inherit; text-overflow: inherit;'
+        }],
+        columns=[{"name": i, "id": i} for i in df.columns],
+        data=df.to_dict("rows"),
+        pagination_settings={
+            'current_page': 0,
+            'page_size': DEFAULT_PAGE_SIZE
+        },
+        pagination_mode='fe',
+        sorting='fe',
+        filtering=False, # 'fe',
+        content_style='grow',
+        n_fixed_rows=2,
+        style_table={'maxHeight':'400','overflowX': 'scroll'}
+    )
+    return dt2
+
+
+# # Step 654 update Interval
 # @app.callback(
-#     Output('progress_div', 'children'), 
+#     Output('portfolio_name', 'children'), 
 #     [
 #         Input('interval-component', 'n_intervals'),
 #     ]
