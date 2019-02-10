@@ -119,7 +119,10 @@ app.layout = html.Div(
 )
 def update_memory(n_submit,contents,stock_entered_data,n_submit_timestamp):
     dt_now = datetime.datetime.utcnow().timestamp()
-    dt_submit = (datetime.datetime.strptime(n_submit_timestamp,'%Y-%m-%dT%H:%M:%S.%fZ') if n_submit_timestamp is not None else datetime.datetime(1970,1,1)).timestamp()
+    ts = datetime.datetime(1970,1,1)
+    if n_submit_timestamp is not None:
+        ts = datetime.datetime.strptime(str(n_submit_timestamp)[:19],'%Y-%m-%dT%H:%M:%S.%fZ')
+    dt_submit = ts.timestamp()
     dt_diff = dt_now - dt_submit
     print(dt_submit,dt_now,dt_diff)
     if contents is not None and dt_diff > .7:

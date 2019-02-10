@@ -218,7 +218,7 @@ class VarModel():
         # get sp500 equivilants
         spy_usual_var = self.reference_current_price * spy_usual_std *  norm.ppf(var_confidence) * (var_days/256)**.5 
         sp_dollar_equiv = port_var / spy_usual_var * self.reference_current_price
-        return {'df_underlying_positions':df_underlying_positions,'df_positions_all':df_positions_3,'port_var':port_var,'sp_dollar_equiv':sp_dollar_equiv}
+        return {'df_underlying_positions':df_underlying_positions,'df_positions_all':df_positions_3,'port_var':port_var,'sp_dollar_equiv':sp_dollar_equiv,'df_atm_price':df_prices,'df_std':df_std}
 
         
     

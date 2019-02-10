@@ -286,13 +286,15 @@ def get_df_greeks(df_portfolio,df_atm_price,model_per_underlying_dict):
         greeks = get_greeks(symbol, atm_price, op_model)
         for g in greek_cols:
             greeks[g] = greeks[g] * size
+        greeks['symbol'] = row.symbol
+        greeks['underlying'] = row.underlying
+        greeks['position'] = row.position
         s = pd.Series(greeks)
         return s
     df_greeks = df_all.apply(_greeks,axis=1)
-    df_greeks = df_greeks[['symbol','underlying','option_price','delta','gamma','vega','theta','rho']]
-    cols_no_symbol =[c for c in df_greeks.columns.values if c not in ['symbol','option_price']]
-    df_greeks_totals = df_greeks[cols_no_symbol].groupby('underlying').sum()
-    
+    df_greeks = df_greeks[['symbol','underlying','position','option_price','delta','gamma','vega','theta','rho']]
+    cols_no_symbol =[c for c in df_greeks.columns.values if c not in ['symbol','option_price','position']]
+    df_greeks_totals = df_greeks[cols_no_symbol].groupby('underlying',as_index=False).sum()    
     return {'df_greeks':df_greeks,'df_greeks_totals':df_greeks_totals}
  
 if __name__=='__main__':

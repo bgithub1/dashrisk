@@ -24,6 +24,7 @@ import pytz
 import io 
 import pandas_datareader.data as pdr
 from dashrisk import var_models as varm
+from dashrisk import option_models as opmod
 
 
 
@@ -74,6 +75,30 @@ DT_DEFAULT_2 = dash_table.DataTable(
     sorting='fe',
     filtering=False, # 'fe',
 )
+
+DT_DEFAULT_3 = dash_table.DataTable(
+    id='table_3',
+    pagination_settings={
+        'current_page': 0,
+        'page_size': DEFAULT_PAGE_SIZE
+    },
+    pagination_mode='fe',
+    sorting='fe',
+    filtering=False, # 'fe',
+)
+DT_DEFAULT_4 = dash_table.DataTable(
+    id='table_4',
+    pagination_settings={
+        'current_page': 0,
+        'page_size': DEFAULT_PAGE_SIZE
+    },
+    pagination_mode='fe',
+    sorting='fe',
+    filtering=False, # 'fe',
+)
+
+
+
 # Step 5: !!!! DEFINE THE app.layout !!!!!!
 #         The layout property of the app object defines all of the html that you will
 #            display in your app
@@ -102,6 +127,8 @@ var_profile_style={
     'textAlign': 'center',
     'margin': '2px'
 }
+
+
 
 app.layout = html.Div(
     [
@@ -138,22 +165,21 @@ app.layout = html.Div(
                     style=button_style,                         
                 ),
             ],
-        ),      
+        ), 
+        
         html.Div([html.H6("Risk Profile")]),        
-        html.Div([DT_DEFAULT],id='dt',style={'margin': '10px'}),
+        html.Div([DT_DEFAULT],id='dt',style={'margin-right':'auto' ,'margin-left':'auto' ,'height': '99.5%','width':'98%'}),
         html.Div([html.H6("Var Profile")]),       
         dcc.Graph(id='my-graph'),
         html.Div([html.H6("Original Position")]),        
         html.Div([DT_DEFAULT_2],id='dt_pos',style={'margin': '10px'}),
+        html.Div([html.H6("Greeks Full")]),        
+        html.Div([DT_DEFAULT_3],id='dt_greeks_full',style={'margin': '10px'}),
+        html.Div([html.H6("Greeks By Underlying")]),        
+        html.Div([DT_DEFAULT_4],id='dt_greeks_by_underlying',style={'margin': '10px'}),
         dcc.Store(id='var_dict'),        
         # Hidden div inside the app that stores the intermediate value
         html.Div(id='intermediate_value', style={'display': 'none'}),
-#         dcc.Interval(
-#             id='interval-component',
-#             interval=1*1000, # in milliseconds
-#             n_intervals=0,
-#             max_intervals=1
-#         )
         
     ],
     style = {'margin':'1px'} 
@@ -192,10 +218,20 @@ def  update_memory(contents):
     var_dict = vm.compute_var()
     port_var = var_dict['port_var']
     df_positions = var_dict['df_underlying_positions']
-    sp_dollar_equiv = var_dict['sp_dollar_equiv']  
+    sp_dollar_equiv = var_dict['sp_dollar_equiv'] 
+    # do greeks
+    df_portfolio = var_dict['df_positions_all']
+    df_atm_price = var_dict['df_atm_price']
+    df_atm_price = df_atm_price.rename(columns={'close':'price'})
+    df_std = var_dict['df_std']
+    model_per_underlying_dict = {u:opmod.BsModel for u in df_atm_price.underlying}
+    greeks_dict = opmod.get_df_greeks(df_portfolio, df_atm_price, model_per_underlying_dict)
+    df_greeks = greeks_dict['df_greeks']
+    df_greeks_totals = greeks_dict['df_greeks_totals']
+     
     print(f'End computing VaR {datetime.datetime.now()}')
 #     return df_positions.to_dict("rows")
-    return {'df_positions':df_positions.to_dict('rows'),'port_var':port_var,'sp_dollar_equiv':sp_dollar_equiv}
+    return {'df_std':df_std.to_dict('rows'),'df_positions':df_positions.to_dict('rows'),'port_var':port_var,'sp_dollar_equiv':sp_dollar_equiv,'df_greeks':df_greeks.to_dict('rows'),'df_greeks_totals':df_greeks_totals.to_dict('rows')}
 
 
 
@@ -242,8 +278,8 @@ def update_table(data):
         Input(component_id='var_dict', component_property='data'),
     ]
 )
-def update_graph(var_dict):
-    df = pd.DataFrame(var_dict['df_positions'])    
+def update_graph(data):
+    df = pd.DataFrame(data['df_positions'])    
     x_vals=df.underlying.as_matrix().reshape(-1)
     y_vals=df.position_var.as_matrix().reshape(-1)
         
@@ -273,8 +309,8 @@ def  update_pvar_div(var_dict):
         Input(component_id='var_dict', component_property='data'),
     ]
 )
-def  update_sp_eq_div(var_dict):
-    sp_dollar_equiv = round(float(var_dict['sp_dollar_equiv']),3)
+def  update_sp_eq_div(data):
+    sp_dollar_equiv = round(float(data['sp_dollar_equiv']),3)
     return f"S&P500 Equivilant Position = {sp_dollar_equiv}"
 
 
@@ -312,11 +348,94 @@ def update_orignal_positions(contents):
         sorting='fe',
         filtering=False, # 'fe',
         content_style='grow',
-        n_fixed_rows=2,
+        n_fixed_rows=1,
         style_table={'maxHeight':'400','overflowX': 'scroll'}
     )
     return dt2
 
+
+# Step 6.5: update graph
+@app.callback(
+    Output('dt_greeks_full', 'children'), 
+    [
+        Input(component_id='var_dict', component_property='data'),
+    ]
+)
+
+
+    
+def update_greeks(var_dict):
+    df = pd.DataFrame(var_dict['df_greeks']) 
+    non_value_cols = ['symbol','position','underlying']
+    value_columns = [c for c in df.columns.values if c not in non_value_cols]
+    for c in value_columns:
+        try:
+            df[c] = df[c].round(3)
+        except:
+            pass
+    all_cols = non_value_cols + value_columns 
+    df = df[all_cols]
+    dt3 = dash_table.DataTable(
+        id='table_3',
+        style_data={'whiteSpace': 'normal'},
+        css=[{
+            'selector': '.dash-cell div.dash-cell-value',
+            'rule': 'display: inline; white-space: inherit; overflow: inherit; text-overflow: inherit;'
+        }],
+        columns=[{"name": i, "id": i} for i in df.columns],
+        data=df.to_dict("rows"),
+        pagination_settings={
+            'current_page': 0,
+            'page_size': DEFAULT_PAGE_SIZE
+        },
+        pagination_mode='fe',
+        sorting='fe',
+        filtering=False, # 'fe',
+        content_style='grow',
+        n_fixed_rows=1,
+        style_table={'maxHeight':'400','overflowX': 'scroll'}
+    )
+    return dt3       
+
+# Step 6.6: update graph
+@app.callback(
+    Output('dt_greeks_by_underlying', 'children'), 
+    [
+        Input(component_id='var_dict', component_property='data'),
+    ]
+)
+def update_greeks_by_underlying(var_dict):
+    df = pd.DataFrame(var_dict['df_greeks_totals'])
+    non_value_cols = ['underlying']
+    value_columns = [c for c in df.columns.values if c not in non_value_cols]
+    for c in value_columns:
+        try:
+            df[c] = df[c].round(3)
+        except:
+            pass
+    all_cols = non_value_cols + value_columns 
+    df = df[all_cols]
+    dt4 = dash_table.DataTable(
+        id='table_4',
+        style_data={'whiteSpace': 'normal'},
+        css=[{
+            'selector': '.dash-cell div.dash-cell-value',
+            'rule': 'display: inline; white-space: inherit; overflow: inherit; text-overflow: inherit;'
+        }],
+        columns=[{"name": i, "id": i} for i in df.columns],
+        data=df.to_dict("rows"),
+        pagination_settings={
+            'current_page': 0,
+            'page_size': DEFAULT_PAGE_SIZE
+        },
+        pagination_mode='fe',
+        sorting='fe',
+        filtering=False, # 'fe',
+        content_style='grow',
+        n_fixed_rows=1,
+        style_table={'maxHeight':'400','overflowX': 'scroll'}
+    )
+    return dt4        
 
 # # Step 654 update Interval
 # @app.callback(
