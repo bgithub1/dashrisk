@@ -97,15 +97,7 @@ DT_DEFAULT_4 = dash_table.DataTable(
     filtering=False, # 'fe',
 )
 
-
-
-# Step 5: !!!! DEFINE THE app.layout !!!!!!
-#         The layout property of the app object defines all of the html that you will
-#            display in your app
-header_markdown = '''
-
-'''
-
+# Step 4.2 define some helpfule css
 button_style={
     'width': '49.5%',
     'height': '40px',
@@ -127,6 +119,12 @@ var_profile_style={
     'textAlign': 'center',
     'margin': '2px'
 }
+
+
+# Step 5: !!!! DEFINE THE app.layout !!!!!!
+#         The layout property of the app object defines all of the html that you will
+#            display in your app
+
 
 
 
