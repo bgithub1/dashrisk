@@ -1,0 +1,13 @@
+pytz==2018.4
+dash_core_components==0.43.0
+dash_table==3.2.0
+pandas==0.22.0
+pandas_datareader==0.7.0
+scipy==1.1.0
+dash_bootstrap_components==0.3.3
+dash_html_components==0.13.5
+plotly==3.3.0
+numpy==1.14.3
+six==1.11.0
+ondemand==1.0.0
+dash==0.36.0

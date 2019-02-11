@@ -1,7 +1,7 @@
 body{
 	margin:0;
 	padding: 0;
- background-color: #fafaf7;
+    background-color: #fafaf7;
 /* 	background-color: #e5e8e6; */
 	font-family: 'Open Sans', sans-serif;
 	color: #506784;
@@ -12,14 +12,15 @@ body{
 }
 
 h1 {
-    background-color: #fafaf7;
-    color: #66ccff;
+    background-color: #2a3f5f;
+    color: white;
     text-align: center;
 }
 
 h2,h3, h4,h5,h6 {
-    background-color: #fafaf7;
-    color: #66ccff;
+/*     background-color: #fafaf7; */
+/*     color: #66ccff; */
+    color:#22aaff;
     text-align: center;
 }
 
@@ -69,10 +70,10 @@ h2,h3, h4,h5,h6 {
 }
 
 .app-title{
-    color:Blue;
-    font-size:3rem;
+    color:white;
+    font-size:2rem;
     letter-spacing:-.1rem;
-    vertical-align:middle
+    vertical-align:middle;
 }
 
 .header{
@@ -81,7 +82,9 @@ h2,h3, h4,h5,h6 {
     height:70px;
     color:white;
     padding-right:2%;
-    padding-left:2%
+    padding-left:2%;
+    vertical-align:middle;
+    text-align: center;
 }
 
 .indicator{

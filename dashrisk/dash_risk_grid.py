@@ -32,7 +32,7 @@ button_style={
     'borderStyle': 'dashed',
     'borderRadius': '1px',
     'textAlign': 'center',
-    'background-color':'#ffffcc',
+    'background-color':'#fffff0',
     'vertical-align':'middle',
 }
 
@@ -42,7 +42,8 @@ select_file_style={
     'borderStyle': 'dashed',
     'borderRadius': '1px',
     'textAlign': 'center',
-    'background-color':'#42e2f4',
+#     'background-color':'#42e2f4',
+    'background-color':'#b0e2f4',
     'vertical-align':'middle',
 }
 
@@ -126,10 +127,16 @@ dt_greeks_by_underlying = dg.GridTable('dt_greeks_by_underlying','Greeks By Unde
 
          
 app.layout = html.Div([
-        html.Div([
-              html.H1("LiveRisk Analysis")],
-        ),
-        html.Div([
+#         html.Div([
+#             html.Span("LiveRisk VaR and Risk Analysis",
+#                     className='app-title'
+#                       )
+#             ],
+#             className="header"),
+       html.Div([html.H1("LiveRisk Analysis")],
+                 style={'background-color':'#2a3f5f','border':'1px solid #C8D4E3','border-radius': '3px'}
+        ),       
+         html.Div([
                html.Span(
                     dcc.Upload(
                         id='upload-data',
@@ -153,10 +160,16 @@ app.layout = html.Div([
                 ),
             ],
         style=buttons_grid_style),      
-        html.Div([html.H2("Var Profile")]),       
+        html.Div(
+            [html.H2("Var Profile")],
+            style={'background-color':'#eefaf7','border':'1px solid #C8D4E3','border-radius': '3px'}
+        ),       
         dcc.Graph(id='my-graph',style={'background-color':'#f5f5f0'}),
         # datatable grid
-        html.Div([html.H2("Risk Tables")]),       
+        html.Div(
+            [html.H2("Risk Tables")],
+            style={'background-color':'#eefaf7','border':'1px solid #C8D4E3','border-radius': '3px'}
+        ),       
         html.Div(
             html.Div([
                 dt, dt_pos, dt_greeks_full,dt_greeks_by_underlying,#my_graph
@@ -166,6 +179,10 @@ app.layout = html.Div([
             ),
             id='risk_tables'
         ),
+        html.Div(
+            [html.H2("Sector Spdr Best Hedge")],
+            style={'background-color':'#eefaf7','border':'1px solid #C8D4E3','border-radius': '3px'}
+        ),       
         dcc.Store(id='var_dict'),        
         # Hidden div inside the app that stores the intermediate value
         html.Div(id='intermediate_value', style={'display': 'none'}),

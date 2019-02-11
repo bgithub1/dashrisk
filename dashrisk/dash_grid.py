@@ -46,7 +46,7 @@ class GridTable():
 
         self.dt_html = html.Div(
             [
-                html.H5(title),
+                html.H4(title,style={'height':'3px'}),
                 self.dt
             ],
             id=html_id,
