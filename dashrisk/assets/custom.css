@@ -1,7 +1,8 @@
 body{
 	margin:0;
 	padding: 0;
-	background-color: #e5e8e6;
+ background-color: #fafaf7;
+/* 	background-color: #e5e8e6; */
 	font-family: 'Open Sans', sans-serif;
 	color: #506784;
     -webkit-user-select: none;  /* Chrome all / Safari all */
@@ -10,15 +11,15 @@ body{
     user-select: none;          /* Likely future */
 }
 
-h1, h2, h3, h4 {
-    background-color: #2b7389;
-    color: white;
+h1 {
+    background-color: #fafaf7;
+    color: #66ccff;
     text-align: center;
 }
 
-h5,h6 {
-    background-color: #66b8dd;
-    color: white;
+h2,h3, h4,h5,h6 {
+    background-color: #fafaf7;
+    color: #66ccff;
     text-align: center;
 }
 
@@ -26,7 +27,7 @@ h5,h6 {
 .dcc_tab {
 	  display: inline-block;
 	  text-align: center;
-	  background-color: #53f74b;
+	  background-color: #ffffee;
 }
 
 .var_results_tab {

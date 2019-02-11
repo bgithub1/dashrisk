@@ -176,11 +176,6 @@ class VarModel():
         
     def compute_var(self,var_days = 1,var_confidence=.99,spy_usual_std=.16):
         df_portfolio = self.df_portfolio
-#         df_price_history = self.get_history_matrix()
-#         df_price_history = df_price_history.drop([self.date_column],axis=1)
-#         prices = df_price_history.iloc[-1].as_matrix()
-#         syms = df_price_history.columns.values
-#         df_prices = pd.DataFrame({'underlying':syms,self.price_column:prices})
         df_prices = self.get_current_prices()
         df_std = self.df_std
         df_corr = self.df_corr

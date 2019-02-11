@@ -4,7 +4,6 @@ Created on Feb 10, 2019
 @author: bperlman1
 '''
 import dash
-import dash_bootstrap_components as dbc
 import dash_core_components as dcc
 import dash_html_components as html
 import pandas as pd
@@ -13,24 +12,10 @@ import plotly.graph_objs as go
 import numpy as np
 
 
-NO_POSITION = {
-    'symbol':['no_position' for _ in range(1001)],
-    'underlying':['no_position' for _ in range(1001)],
-    'position':np.linspace(0, 1000,1001),
-    'position_var':np.linspace(2, 1002,1001),
-    'unit_var':np.linspace(2, 1002,1001),
-    'stdev':np.linspace(3, 1003,1001),
-    'close':np.linspace(4, 1004,1001),
-}
-
-DF_NO_POSITION = pd.DataFrame(NO_POSITION)
 
 class GridTable():
-    def __init__(self,html_id,title,df):
+    def __init__(self,html_id,title,df=None):
         self.dt = dash_table.DataTable(
-            id=html_id,
-            columns=[{"name": i, "id": i} for i in df.columns],
-            data=df.to_dict("rows"),
             pagination_settings={
                 'current_page': 0,
                 'page_size': 100
@@ -55,12 +40,16 @@ class GridTable():
             n_fixed_rows=1,
             style_table={'maxHeight':'450','overflowX': 'scroll'}    
         )
+        if df is not None:
+            self.dt.data=df.to_dict("rows")
+            self.dt.columns=[{"name": i, "id": i} for i in df.columns]
 
         self.dt_html = html.Div(
             [
-                html.Div(title,style={'text-align': 'center}'}),
+                html.H5(title),
                 self.dt
             ],
+            id=html_id,
             style={'margin-right':'auto' ,'margin-left':'auto' ,'height': '98%','width':'98%'}
         )
     @property
@@ -119,6 +108,19 @@ chart_style = {'margin-right':'auto' ,'margin-left':'auto' ,'height': '98%','wid
 
 
 if __name__ == '__main__':
+
+    NO_POSITION = {
+        'symbol':['no_position' for _ in range(1001)],
+        'underlying':['no_position' for _ in range(1001)],
+        'position':np.linspace(0, 1000,1001),
+        'position_var':np.linspace(2, 1002,1001),
+        'unit_var':np.linspace(2, 1002,1001),
+        'stdev':np.linspace(3, 1003,1001),
+        'close':np.linspace(4, 1004,1001),
+    }
+    
+    DF_NO_POSITION = pd.DataFrame(NO_POSITION)
+    
     dts = [GridTable(f't{i}',f'table {i}',DF_NO_POSITION).html for i in range(2)]
     grs = [GridGraph(f'g{i}', f'{t} {i}', animals, animal_heights, x_t, y_t).html for i in range(2)]
     
