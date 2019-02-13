@@ -121,7 +121,8 @@ def update_memory(n_submit,contents,stock_entered_data,n_submit_timestamp):
     dt_now = datetime.datetime.utcnow().timestamp()
     ts = datetime.datetime(1970,1,1)
     if n_submit_timestamp is not None:
-        ts = datetime.datetime.strptime(str(n_submit_timestamp)[:19],'%Y-%m-%dT%H:%M:%S.%fZ')
+#         ts = datetime.datetime.strptime(str(n_submit_timestamp)[:19],'%Y-%m-%dT%H:%M:%S.%fZ')
+        ts = datetime.datetime.strptime(str(n_submit_timestamp)[:19],'%Y-%m-%dT%H:%M:%S')
     dt_submit = ts.timestamp()
     dt_diff = dt_now - dt_submit
     print(dt_submit,dt_now,dt_diff)
