@@ -3,6 +3,10 @@ Created on Feb 10, 2019
 
 @author: bperlman1
 '''
+import sys
+sys.path.append('./')
+sys.path.append('../')
+
 import dash
 from dash.dependencies import Input, Output, State
 
