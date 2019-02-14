@@ -5,7 +5,9 @@ Show an example of using Dash (https://dash.plot.ly/) to retrieve and display
 market data
 @author: Bill Perlman
 '''
-
+import sys
+sys.path.append('./')
+sys.path.append('../')
 import dash
 from dash.dependencies import Input, Output, State
 import dash_bootstrap_components as dbc
@@ -14,6 +16,7 @@ import dash_html_components as html
 import dash_table
 import plotly.graph_objs as go
 from dashrisk import quantmod as qm
+import argparse as ap
 
 
 import pandas as pd
@@ -28,6 +31,7 @@ from datetime import tzinfo
 app = dash.Dash('Dash Market Data',external_stylesheets=[dbc.themes.BOOTSTRAP])
 # Step 2: add custom css
 app.css.append_css({'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'})
+app.secret_key = 'development key'
 
 
 # Step 3: Define some often used variables
@@ -265,4 +269,10 @@ def parse_contents(contents):
 
 
 if __name__ == '__main__':
-    app.run_server(port=8400)
+    parser = ap.ArgumentParser()
+    parser.add_argument('--ip',type=str,default='127.0.0.1',help='ip address of server')
+    parser.add_argument('--port',type=int,default=8400,help='port of server')
+    args = parser.parse_args()
+    ip = args.ip
+    port = args.port 
+    app.run_server(host=ip,port=port) 

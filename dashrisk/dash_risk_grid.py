@@ -159,8 +159,9 @@ def update_risk_data(contents):
 
 if __name__ == '__main__':
     default_risk_data = update_risk_data(None)
-    app = dash.Dash()
-             
+    app = dash.Dash(__name__)
+    app.secret_key = 'development key'
+         
     app.layout = html.Div([
             html.Div([html.Div([],style={'display': 'none'})],id='spinner'),
             html.Div([html.H1("LiveRisk Analysis")],
