@@ -6,100 +6,78 @@ from dash.dependencies import Input, Output, State
 import time
 import sys
 
-
-
 class ProgressComponent():
-    @staticmethod
-    def default_wait_function():
-        print('i am going to sleep')
-        time.sleep(10)
-        print('i am awake')
-        
-    max_interval_value = int(sys.maxsize/100)
-    wait_interval_value = 200
-
+    INPUT_ID = 'pg_input_data'
+    OUTPUT_ID = 'pg_output_data'
     def __init__(self,
         theapp,
-        input_component_id = 'dcc_input',
-        input_component_property = 'n_submit',
-        input_component_value = 'value',
-        display_component_id = 'status',
-        display_component_property = 'children',
-        display_component_value = 'children',
-        display_component_div_to_show = 'waiting',
-        display_component_div_to_hide = [],
-        wait_function = None
-        ):
+        long_running_process,
+        display_div_id,
+        div_to_show=None,
+        div_to_hide = None
+    ):
         self.theapp = theapp
-        self.input_component_id = input_component_id
-        self.input_component_property = input_component_property
-        self.input_component_value = input_component_value        
-        self.display_component_id = display_component_id
-        self.display_component_property = display_component_property
-        self.display_component_value = display_component_value
-        self.display_component_div_to_show = display_component_div_to_show
-        self.display_component_div_to_hide = display_component_div_to_hide
-        self.dcc_interval = html.Div(dcc.Interval(id='int_val',interval=ProgressComponent.max_interval_value,n_intervals=0))
-        self.wait_function = ProgressComponent.default_wait_function if wait_function is None else wait_function
+        self.long_running_process = long_running_process
+        self.display_div_id = display_div_id
+        self.div_to_show = 'waiting' if div_to_show is None else div_to_show
+        self.div_to_hide = 'waiting' if div_to_hide is None else div_to_hide
+        # add v1 component to layout
+        self.theapp.layout.children.append(dcc.Store(id='show'))
+        self.theapp.layout.children.append(dcc.Store(id='hide'))
+        self.theapp.layout.children.append(dcc.Store(id=ProgressComponent.INPUT_ID))
+        self.theapp.layout.children.append(dcc.Store(id=ProgressComponent.OUTPUT_ID))
+        self.callbacks = self.define_callbacks()
         
     def define_callbacks(self):
-        # callback 1
         self.theapp.layout
+        # input from user
+        @self.theapp.callback(
+            Output('show','data'),
+            [Input(ProgressComponent.INPUT_ID,'data')],
+            [State('show','data')]
+        )
+        def input_callback(input_data,show_data):
+            show_count = 1 if show_data is None else int(str(show_data['data'])) + 1
+            return {'data':str(show_count)}
+        
+        # this callback displays the show div or the hide div
+        @self.theapp.callback(
+            Output(self.display_div_id,'children'),
+            [Input('show','data'),Input('hide','data')],
+            [State(self.display_div_id,'children')]
+        )
+        def display_callback(show,hide,children):
+            print('entering display_callback')
+            show_count = int(show['data'])
+            hide_count = int(hide['data'])
+            r =  self.div_to_hide
+            if show_count != hide_count:
+                r =  self.div_to_show
+            print(f'exiting with r = {r}')
+            return r
+        
+        # callback to fire long process
         @self.theapp.callback(
             # outputs
-            [
-                Output('v1','data'),
-                Output(self.display_component_id,self.display_component_property)
-            ],
-            # inputs
-            [
-                Input(self.input_component_id,self.input_component_property),
-                Input('int_val','n_intervals')
-            ],
-            # states
-            [
-                State(self.input_component_id,self.input_component_value),
-                State('int_val','interval'),State('v1','data'),
-                State(self.display_component_id,self.display_component_value)
-            ]
-        )
-        def cb1(_display_component_property,n_intervals,input_component_value,interval,v1_in,_display_component_value):
-            v1 = {'r':0} if v1_in is None else v1_in 
-            print('cb1',_display_component_property,n_intervals,input_component_value,interval,v1_in,_display_component_value)
-            if input_component_value is None:
-                return [{'r':0}, self.display_component_div_to_hide]
-            if v1['r'] == 0 and interval == ProgressComponent.max_interval_value:
-                return [{'r':1},self.display_component_div_to_show]
-            if v1['r'] == 1 and interval == ProgressComponent.wait_interval_value:
-                return [{'r':0},self.display_component_div_to_hide]    
-            return [{'r':0}, self.display_component_div_to_hide]
-        
-        # callback 2
-        @self.theapp.callback(
-            # output
-            Output('int_val','interval'),
+            [Output(ProgressComponent.OUTPUT_ID,'data'),Output('hide','data')],
             # input
-            [Input('v1','data')],
-            # states
-            [
-                State('int_val','interval'),
-                State(self.input_component_id,self.input_component_value)
-            ]
+            [Input(ProgressComponent.INPUT_ID,'data')],
+            [State('hide','data')]
         )
-        def cb2(v1_in,int_val,input_component_value):
-            v1 = {'r':0} if v1_in is None else v1_in
-            print('cb2',input_component_value,int_val,v1)
-            if input_component_value is None:
-                return ProgressComponent.max_interval_value
-            if v1['r'] == 1 and int_val == ProgressComponent.max_interval_value:
-                self.wait_function()
-#                 print('sleeping')
-#                 time.sleep(10)
-#                 print('waking')
-                return ProgressComponent.wait_interval_value
-            return ProgressComponent.max_interval_value
+        def output_callback(input_data,hide_data):
+            print('entering output_callback')
+            result = None
+            try:
+                result = self.long_running_process(input_data)
+                print(result)
+            except:
+                pass
+            hide_count = 1 if hide_data is None else int(str(hide_data['data'])) + 1
+            return result,{'data':str(hide_count)}
     
-        return {'cb1':cb1,'cb2':cb2}
+        return [input_callback,display_callback,output_callback]
+
+
 
     
 if __name__ == '__main__':
@@ -109,49 +87,64 @@ if __name__ == '__main__':
     # app.config['suppress_callback_exceptions']=True
 
     
-    my_input_component_id = 'stock'
-    my_input_component_property = 'n_submit'
-    my_input_component_value = 'value'
-     
-    my_display_component_id = 'status'
-    my_display_component_property = 'children'
-    my_display_component_value = 'children'
+    input_div_id = 'input_div_id'
     loader_div = html.Div([],className='loader')
-    my_display_component_div_to_show =  html.Div(['waiting 10 seconds',loader_div])
-    my_display_component_div_to_hide = []
+    progress_animation_div_to_show =  html.Div(['waiting a few seconds',loader_div])
+    hide_div = []
+    hide_show_div_id = 'status'
     
-    prog = ProgressComponent(app, my_input_component_id, 
-                             my_input_component_property, 
-                             my_input_component_value, 
-                             my_display_component_id, 
-                             my_display_component_property, 
-                             my_display_component_value, 
-                             my_display_component_div_to_show, 
-                             my_display_component_div_to_hide)
     
     
     app.layout = html.Div(
         [
-            html.Div(['enter text and hit enter key: ',dcc.Input(id=my_input_component_id, type='text')]),
+            html.Div(['enter text and hit enter key: ',dcc.Input(id=input_div_id, type='text')]),
             html.Span(
                 [
                     html.Div('status: ',style={'display':'inline'}),
                     html.Div(
-                        my_display_component_div_to_hide,
-                        id=my_display_component_id,
-                        style={'display':'inline'})
+                        hide_div,
+                        id=hide_show_div_id,
+                        style={'display':'inline'}
+                    ),
+                    html.Div([],id='results')
                 ]
             ),
-            prog.dcc_interval,
-            dcc.Store(id='v1'),
-            dcc.Store(id='v2'),
-            dcc.Store(id='v3'),
         ]
     )
     
-    callbacks = prog.define_callbacks()
+    def default_wait_function(data):
+        print(data['sleep_message'])
+        time.sleep(data['sleep_time'])
+        print(data['awake_message'])
+        return {'data':str(datetime.datetime.now())}
+    
+    prog = ProgressComponent(app, default_wait_function, hide_show_div_id, progress_animation_div_to_show, hide_div)
+    prog.callbacks
 
-    callbacks['cb1']
-    callbacks['cb2']
+
+    import datetime
+    # local callbacks
+    @app.callback(
+        Output(ProgressComponent.INPUT_ID,'data'),
+        [Input(input_div_id,'n_submit')],
+        [State(input_div_id,'value')]
+    )
+    def from_input_box(n_submit,value):
+        sleep_time = 7
+        if value is None:
+            sleep_time = .1
+        data = {
+            'sleep_message':f'{str(value)} is going to sleep',
+            'sleep_time':sleep_time,
+            'awake_message':f'{str(value)} is baaaaack!!'
+        }
+        return data
+        
+    @app.callback(
+        Output('results','children'),
+        [Input(ProgressComponent.OUTPUT_ID,'data')]
+    )
+    def display_results(output_data):
+        return None if output_data is None else output_data['data']
     
     app.run_server(port=8600) 
