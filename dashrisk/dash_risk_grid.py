@@ -19,6 +19,8 @@ import pytz
 import io 
 from dashrisk import dash_grid as dg
 from dashrisk import progress_component as pgcm
+import argparse as ap
+
 
 # Step 3: Define some often used variables
 TIME_COLUMN='Date'
@@ -349,5 +351,11 @@ if __name__ == '__main__':
     
         
 
+    parser = ap.ArgumentParser()
+    parser.add_argument('--ip',type=str,default='127.0.0.1',help='ip address of server')
+    parser.add_argument('--port',type=int,default=8400,help='port of server')
+    args = parser.parse_args()
+    ip = args.ip
+    port = args.port 
 
-    app.run_server(port=8400)
+    app.run_server(host=ip,port=port)

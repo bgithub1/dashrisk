@@ -4,7 +4,7 @@ import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
 import time
-import sys
+import argparse as ap
 
 class ProgressComponent():
     INPUT_ID = 'pg_input_data'
@@ -81,7 +81,12 @@ class ProgressComponent():
 
     
 if __name__ == '__main__':
-    
+    parser = ap.ArgumentParser()
+    parser.add_argument('--ip',type=str,default='127.0.0.1',help='ip address of server')
+    parser.add_argument('--port',type=int,default=8400,help='port of server')
+    args = parser.parse_args()
+    ip = args.ip
+    port = args.port 
     
     app = dash.Dash()
     # app.config['suppress_callback_exceptions']=True
@@ -147,4 +152,6 @@ if __name__ == '__main__':
     def display_results(output_data):
         return None if output_data is None else output_data['data']
     
-    app.run_server(port=8600) 
+    app.run_server(host=ip,port=port) 
+    
+    
