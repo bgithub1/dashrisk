@@ -34,7 +34,9 @@ def get_last_business_day(date):
     return None
 
 class HistoryBuilder():
-    def __init__(self,dburl=None,databasename=None,username=None,password=None,schema_name=None,yahoo_daily_table=None,logger=None,initial_stock_list=None,days_to_fetch=DEFAULT_DAYS_TO_FETCH):
+    def __init__(self,dburl=None,databasename=None,
+                 username=None,password=None,schema_name=None,yahoo_daily_table=None,
+                 logger=None,initial_stock_list=None,days_to_fetch=DEFAULT_DAYS_TO_FETCH):
         self.logger = logger if dburl is not None else li.init_root_logger('logfile.log', 'INFO')
         self.dburl = dburl if dburl is not None else 'localhost'
         self.username = username if username is not None else ''
@@ -110,6 +112,9 @@ class HistoryBuilder():
     def build_pg_from_csvs(self,delete_table_before_building=True):
         pga2 = self.pga        
         if delete_table_before_building:
+            pga2.exec_sql_raw(f"drop table if exists {self.full_table_name}")
+        try:
+            # always try to build the table in case it's the first time
             sql = f"""
             create table {self.full_table_name}(
                 symbol text not null,
@@ -121,9 +126,11 @@ class HistoryBuilder():
                 adj_close numeric not null,
                 volume integer not null,
                 primary key(symbol,Date));
-            """
-            pga2.exec_sql_raw(f"drop table if exists {self.full_table_name}")
+            """            
             pga2.exec_sql_raw(sql) 
+        except:
+            # ignore
+            pass
         stk_files = [s+'.csv' for s in self.initial_stock_list] if self.initial_stock_list is not None else   [f for f in listdir(STOCKS_DIR) if isfile(join(STOCKS_DIR, f))] 
         for csv_name in stk_files:
             csv_path = f'{STOCKS_DIR}/{csv_name}'
