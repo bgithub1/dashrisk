@@ -4,8 +4,10 @@ Created on Feb 10, 2019
 @author: bperlman1
 '''
 import sys
-sys.path.append('./')
-sys.path.append('../')
+if  not './' in sys.path:
+    sys.path.append('./')
+if  not '../' in sys.path:
+    sys.path.append('../')
 
 import dash
 from dash.dependencies import Input, Output, State
@@ -23,6 +25,7 @@ import pytz
 import io 
 from dashrisk import dash_grid as dg
 from dashrisk import progress_component as pgcm
+from dashrisk import build_history as bh
 import argparse as ap
 
 
@@ -30,6 +33,9 @@ import argparse as ap
 TIME_COLUMN='Date'
 DEFAULT_PAGE_SIZE = 100 # number of rows to show
 DEFAULT_TIMEZONE = 'US/Eastern'
+
+
+
 
 
 # Step 4.2 define some helpful css
@@ -127,7 +133,9 @@ def format_df(df_in,non_value_cols):
     df = df[all_cols]
     return df
 
-def update_risk_data(contents):
+def update_risk_data(contents,USE_POSTGRES=False,
+        dburl=None,databasename=None,username=None,
+        password=None,schema_name=None,yahoo_daily_table=None):
     print('entering update_memory')
     if contents is None:
         print('contents is None')
@@ -135,7 +143,12 @@ def update_risk_data(contents):
     else:
         df = parse_contents(contents)
     print(f'Start computing VaR {datetime.datetime.now()}')
-    vm = varm.VarModel(df)
+    if USE_POSTGRES:
+        hb = bh.HistoryBuilder(dburl,databasename,username,password,schema_name,yahoo_daily_table)
+        history_fetcher = varm.PostgresFetcher(hb)
+    else:
+        history_fetcher = varm.YahooFetcher()
+    vm = varm.VarModel(df,history_fetcher)
     var_dict = vm.compute_var()
     port_var = var_dict['port_var']
 #     df_var_all = var_dict['df_underlying_positions']
@@ -158,7 +171,15 @@ def update_risk_data(contents):
     return {'yyyymmddhhmmssmmmmmm':str(yyyymmddhhmmssmmmmmm),'df_std':df_std.to_dict('rows'),'df_risk_all':df_risk_all.to_dict('rows'),'port_var':port_var,'sp_dollar_equiv':sp_dollar_equiv}
 
 if __name__ == '__main__':
-    default_risk_data = update_risk_data(None)
+    parser = ap.ArgumentParser()
+    parser.add_argument('--ip',type=str,default='127.0.0.1',help='ip address of server')
+    parser.add_argument('--port',type=int,default=8400,help='port of server')
+    parser.add_argument('--use_postgres',type=bool,default=False,help='set to True if using Postgres db for history data')
+    args = parser.parse_args()
+    ip = args.ip
+    port = args.port 
+    
+    default_risk_data = update_risk_data(None,args.use_postgres)
     app = dash.Dash(__name__)
     app.secret_key = 'development key'
          
@@ -223,7 +244,7 @@ if __name__ == '__main__':
     def process_risk_data(contents):
         if contents is None:
             return default_risk_data
-        return update_risk_data(contents)
+        return update_risk_data(contents,args.use_postgres)
         
     prog = pgcm.ProgressComponent(app, process_risk_data, 'spinner', my_display_component_div_to_show, my_display_component_div_to_hide)
     prog.callbacks
@@ -306,9 +327,12 @@ if __name__ == '__main__':
     )
     def update_graph(children,data,figure):
         print('entering update_graph')
-        df = pd.DataFrame(data['df_risk_all'])    
-        x_vals=df.underlying.as_matrix().reshape(-1)
-        y_vals=df.position_var.as_matrix().reshape(-1)
+        x_vals = []
+        y_vals = []
+        if data is not None:
+            df = pd.DataFrame(data['df_risk_all'])    
+            x_vals=df.underlying.as_matrix().reshape(-1)
+            y_vals=df.position_var.as_matrix().reshape(-1)
         fig = go.Figure(data = [go.Bar(
                     x=x_vals,
                     y=y_vals
@@ -333,6 +357,11 @@ if __name__ == '__main__':
     def update_risk_tables(fig,data,children):
         print('entering update_risk_tables')
         # all positions
+        if data is None:
+            return html.Div([], 
+                className='item1',style=grid_style
+            )
+            
         df_risk_by_symbol = pd.DataFrame(data['df_risk_all'])
         risk_agg_cols = [c for c in df_risk_by_symbol.columns.values if c not in ['symbol','position']]
         df_risk_by_symbol = format_df(df_risk_by_symbol,['symbol','underlying','position'])
@@ -356,11 +385,5 @@ if __name__ == '__main__':
     
         
 
-    parser = ap.ArgumentParser()
-    parser.add_argument('--ip',type=str,default='127.0.0.1',help='ip address of server')
-    parser.add_argument('--port',type=int,default=8400,help='port of server')
-    args = parser.parse_args()
-    ip = args.ip
-    port = args.port 
 
     app.run_server(host=ip,port=port)

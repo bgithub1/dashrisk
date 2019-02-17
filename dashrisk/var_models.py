@@ -3,6 +3,11 @@ Created on Feb 5, 2019
 
 @author: bperlman1
 '''
+import sys
+if  not './' in sys.path:
+    sys.path.append('./')
+if  not '../' in sys.path:
+    sys.path.append('../')
 import pandas_datareader.data as pdr
 import pandas as pd
 import datetime
@@ -12,6 +17,44 @@ from dashrisk import option_models as opmod
 from scipy.stats import norm
 from pandas_datareader import data as web
 
+
+class PostgresFetcher():
+    '''
+    Fetch data from posggres using the HistoryBuilder class in build_history.py
+    '''
+    def __init__(self,history_builder):
+        self.history_builder = history_builder
+        self.history_dict = {}
+        self.yahoo_fetcher = YahooFetcher()
+    def fetch_histories(self,symbol_list,dt_beg,dt_end):
+        for symbol in symbol_list:
+            if symbol in self.history_dict:
+                continue
+            try:
+                df = self.fetch_history(symbol, dt_beg, dt_end)
+                if df is None or len(df)<1:
+                    df = self.yahoo_fetcher.fetch_history(symbol, dt_beg, dt_end)
+                    if df is None or len(df)<1:
+                        raise ValueError(f'fetch_histories: cannot find history from Yahoo for {symbol}')
+                self.history_dict[symbol] = df
+            except Exception as e:
+                print(str(e))
+            
+    def fetch_history(self,symbol,dt_beg,dt_end):
+        if symbol in self.history_dict:
+            return self.history_dict[symbol] 
+        df = self.history_builder.get_pg_data(symbol,dt_beg,dt_end)
+        if df is None or len(df)<1:
+            self.history_builder.add_symbol_to_pg(symbol,dt_beg=dt_beg,dt_end=dt_end)
+            df = self.history_builder.get_pg_data(symbol,dt_beg,dt_end)
+            if df is None or len(df)<1:
+                raise ValueError(f'fetch_histories: cannot find history from Yahoo for {symbol}')
+            
+        self.history_dict[symbol] = df
+        df = df.rename(columns={c:c.lower() for c in df.columns.values})
+        return df
+
+    
 class YahooFetcher():
     def __init__(self):
         self.history_dict = {}
@@ -20,7 +63,8 @@ class YahooFetcher():
         for symbol in symbol_list:
             if symbol in self.history_dict:
                 continue
-            self.fetch_history(symbol, dt_beg, dt_end)
+            self.history_dict[symbol] = self.fetch_history(symbol, dt_beg, dt_end)
+            
     def fetch_history(self,symbol,dt_beg,dt_end):
         if symbol in self.history_dict:
             return self.history_dict[symbol]            
@@ -35,7 +79,7 @@ class YahooFetcher():
         cols = df.columns.values 
         cols_dict = {c:c[0].lower() + c[1:] for c in cols}
         df = df.rename(columns = cols_dict)
-        self.history_dict[symbol] = df
+#         self.history_dict[symbol] = df
         return df
     
 
@@ -52,8 +96,10 @@ class BarChartFetcher30Min():
         for symbol in symbol_list:
             if symbol in self.history_dict:
                 continue
-            self.fetch_history(symbol, dt_beg, dt_end)
-
+            try:
+                self.history_dict[symbol] = self.fetch_history(symbol, dt_beg, dt_end)
+            except Exception as e:
+                print(str(e))
     # fetch history for a symbol
     def fetch_history(self,symbol,dt_beg,dt_end,interval=1):
         if symbol in self.history_dict:
@@ -82,7 +128,7 @@ class BarChartFetcher30Min():
             return dt 
         df['date'] = df.timestamp.apply(_make_date)
         df = df.drop(['timestamp'],axis=1)
-        self.history_dict[symbol] = df
+#         self.history_dict[symbol] = df
         return df
     
 class FixedRateModel():
@@ -120,7 +166,7 @@ class VarModel():
         if self.history_fetcher is None:
             self.history_fetcher = YahooFetcher()
         self.dt_end = dt_end if dt_end is not None else datetime.datetime.now()
-        self.dt_beg = dt_beg if dt_beg is not None else self.dt_end - datetime.timedelta(60)
+        self.dt_beg = dt_beg if dt_beg is not None else self.dt_end - datetime.timedelta(80)
         self.history_dict = self.fetch_portfolio_history()
         self.reference_current_price = self.get_reference_index_current_price()
         self.df_std = self.compute_std() 

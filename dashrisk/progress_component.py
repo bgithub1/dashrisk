@@ -70,8 +70,8 @@ class ProgressComponent():
             try:
                 result = self.long_running_process(input_data)
                 print(result)
-            except:
-                pass
+            except Exception as e:
+                print('output_callback',str(e))
             hide_count = 1 if hide_data is None else int(str(hide_data['data'])) + 1
             return result,{'data':str(hide_count)}
     

@@ -6,8 +6,10 @@ market data
 @author: Bill Perlman
 '''
 import sys
-sys.path.append('./')
-sys.path.append('../')
+if  not './' in sys.path:
+    sys.path.append('./')
+if  not '../' in sys.path:
+    sys.path.append('../')
 import dash
 from dash.dependencies import Input, Output, State
 import dash_bootstrap_components as dbc
