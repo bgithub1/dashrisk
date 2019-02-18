@@ -1,6 +1,22 @@
 '''
 Created on Feb 16, 2019
 
+Use the main in this module to build an history sql database, by instantiating an
+  instance of HistoryBuilder.
+
+Usage: (make sure your virtualenv has all the dependencies in ../requirements.txt)
+
+1. Build database from scratch, using symbols from the SP 500, the sector spdr ETF's 
+   and the commodity ETFs
+$ python3 build_history.py --fetch_from_yahoo True --build_table True
+
+2. Update the existing symbols in the database
+$ python3 build_history.py --update_table  True
+
+3. Delete the existing table, and recreate it
+$ python3 build_history.py --delete_table --True --fetch_from_yahoo True --build_table True
+
+
 @author: bperlman1
 '''
 import argparse as ap
@@ -34,9 +50,30 @@ def get_last_business_day(date):
     return None
 
 class HistoryBuilder():
-    def __init__(self,dburl=None,databasename=None,
-                 username=None,password=None,schema_name=None,yahoo_daily_table=None,
-                 logger=None,initial_stock_list=None,days_to_fetch=DEFAULT_DAYS_TO_FETCH):
+    def __init__(self,
+                 delete_schema=False,
+                 delete_table=False,
+                 fetch_from_yahoo=False,
+                 build_table=False,
+                 update_table=True,
+                 beg_date=None,
+                 end_date=None,
+                 dburl=None,
+                 databasename=None,
+                 username=None,
+                 password=None,
+                 schema_name=None,
+                 yahoo_daily_table=None,
+                 initial_symbol_list=None,
+                 days_to_fetch=DEFAULT_DAYS_TO_FETCH,
+                 logger=None):
+        self.delete_schema = delete_schema
+        self.delete_table = delete_table
+        self.fetch_from_yahoo = fetch_from_yahoo
+        self.build_table = build_table
+        self.update_table = update_table
+        self.beg_date = beg_date
+        self.end_date = end_date
         self.logger = logger if dburl is not None else li.init_root_logger('logfile.log', 'INFO')
         self.dburl = dburl if dburl is not None else 'localhost'
         self.username = username if username is not None else ''
@@ -46,13 +83,7 @@ class HistoryBuilder():
         self.yahoo_daily_table = yahoo_daily_table if yahoo_daily_table is not None else 'yahoo_daily'
         self.pga = pg.PgPandas(databasename=self.databasename,username=self.username,password=self.password,dburl=self.dburl)
         self.full_table_name = self.schema_name + '.' + self.yahoo_daily_table
-        self.action_dict = {
-            'update':self.update_yahoo_daily,
-            'build_from_scratch': self.build_from_scratch,
-            'build_from_csvs':self.build_pg_from_csvs,
-            'add_new_symbols':self.add_new_symbols
-        }
-        self.initial_stock_list = self.get_sp_stocks() if initial_stock_list is None else initial_stock_list
+        self.initial_symbol_list = self.get_sp_stocks() if initial_symbol_list is None else initial_symbol_list
         self.days_to_fetch = days_to_fetch
         
     def write_hist_dict_to_csv(self,hist_dict):
@@ -69,7 +100,7 @@ class HistoryBuilder():
             
             
     def build_history_dict(self):
-        symbols = self.initial_stock_list
+        symbols = self.initial_symbol_list
         hist_dict = {}
         end_date = dt.datetime.now()
         beg_date = end_date - dt.timedelta(self.days_to_fetch)
@@ -109,38 +140,39 @@ class HistoryBuilder():
         return ret
     
     
-    def build_pg_from_csvs(self,delete_table_before_building=True):
-        pga2 = self.pga        
-        if delete_table_before_building:
-            pga2.exec_sql_raw(f"drop table if exists {self.full_table_name}")
-        try:
-            # always try to build the table in case it's the first time
-            sql = f"""
-            create table {self.full_table_name}(
-                symbol text not null,
-                date Date not null,
-                open numeric not null,
-                high numeric not null,
-                low numeric not null,
-                close numeric not null,
-                adj_close numeric not null,
-                volume integer not null,
-                primary key(symbol,Date));
-            """            
-            pga2.exec_sql_raw(sql) 
-        except:
-            # ignore
-            pass
-        stk_files = [s+'.csv' for s in self.initial_stock_list] if self.initial_stock_list is not None else   [f for f in listdir(STOCKS_DIR) if isfile(join(STOCKS_DIR, f))] 
+    def build_pg_from_csvs(self,delete_table_before_building=False):
+#         pga2 = self.pga        
+#         if delete_table_before_building:
+#             pga2.exec_sql_raw(f"drop table if exists {self.full_table_name}")
+#         try:
+#             # try creating the schema, just in case
+#             pga2.exec_sql_raw(f"create schema {self.schema_name};")
+#         except:
+#             pass
+#         try:
+#             # always try to build the table in case it's the first time
+#             sql = f"""
+#             create table {self.full_table_name}(
+#                 symbol text not null,
+#                 date Date not null,
+#                 open numeric not null,
+#                 high numeric not null,
+#                 low numeric not null,
+#                 close numeric not null,
+#                 adj_close numeric not null,
+#                 volume integer not null,
+#                 primary key(symbol,Date));
+#             """            
+#             pga2.exec_sql_raw(sql) 
+#         except:
+#             # ignore
+#             pass
+        stk_files = [s+'.csv' for s in self.initial_symbol_list] if self.initial_symbol_list is not None else   [f for f in listdir(STOCKS_DIR) if isfile(join(STOCKS_DIR, f))] 
         for csv_name in stk_files:
             csv_path = f'{STOCKS_DIR}/{csv_name}'
             df = pd.read_csv(csv_path)
             sym = csv_name.replace('.csv','')            
-#             df['symbol'] = sym
-#             self.logger.info(f'writing {sym} to postgres')
-#             df = df.rename(columns = {c:c.lower().replace(' ','_') for c in df.columns.values})
             try:
-#                 pga2.write_df_to_postgres_using_metadata(df=df,table_name=self.full_table_name)
                 self.write_symbol_to_pg(sym,df)
             except Exception as e:
                 self.logger.warn(str(e))
@@ -244,41 +276,144 @@ class HistoryBuilder():
         df = df.rename(columns={'Adj close':'Adj Close'})
         return df        
     
-    def build_from_scratch(self):
-        hist_dict = self.build_history_dict()
-        self.write_hist_dict_to_csv(hist_dict)
-        self.build_pg_from_csvs()
-      
-    def build_from_csvs(self):
-        self.build_pg_from_csvs()
-    
-    def add_new_symbols(self):
-        hist_dict = self.build_history_dict()
-        self.write_hist_dict_to_csv(hist_dict)
-        self.build_pg_from_csvs(delete_table_before_building=False)
-    
-    def do_action(self,action):
-        self.action_dict[action]()
+#     def build_from_scratch(self):
+#         hist_dict = self.build_history_dict()
+#         self.write_hist_dict_to_csv(hist_dict)
+#         self.build_pg_from_csvs()
+#       
+#     def build_from_csvs(self):
+#         self.build_pg_from_csvs()
+#     
+#     def add_new_symbols(self):
+#         hist_dict = self.build_history_dict()
+#         self.write_hist_dict_to_csv(hist_dict)
+#         self.build_pg_from_csvs(delete_table_before_building=False)
+#     
+#     def do_action(self,action):
+#         self.action_dict[action]()
         
+        
+    
+    def execute(self):
+        if self.delete_schema:
+            self.pga.exec_sql_raw(f"create schema {self.schema_name};")
+        
+        if self.delete_table:
+            self.pga.exec_sql_raw(f"drop table if exists {self.full_table_name}")
+            sql = f"""
+            create table {self.full_table_name}(
+                symbol text not null,
+                date Date not null,
+                open numeric not null,
+                high numeric not null,
+                low numeric not null,
+                close numeric not null,
+                adj_close numeric not null,
+                volume integer not null,
+                primary key(symbol,Date));
+            """            
+            self.pga.exec_sql_raw(sql) 
+            
+        if self.fetch_from_yahoo:
+            hist_dict = self.build_history_dict()
+            self.write_hist_dict_to_csv(hist_dict=hist_dict)
+        if self.build_table:
+            self.build_from_csvs()
+        if self.update_table:
+            self.update_yahoo_daily(self.beg_date, self.end_date)
 
 
 if __name__ == '__main__':
+    logger = li.init_root_logger('logger.log','INFO') 
     start_time = dt.datetime.now()
-    print(start_time)
+    logger.info(f'starting at {start_time}')
     parser = ap.ArgumentParser()
-    parser.add_argument('--action',type=str,help='update (default), build_from_scratch, build_from_csvs, add_new_symbols',
-                        default='update')
-    parser.add_argument('--initial_stock_list',type=str,help='a comma separated list of stock names.  If blank, use SP500 constituents',
-                        nargs='?')
+#     parser.add_argument('--action',type=str,help='update (default), build_from_scratch, build_from_csvs, add_new_symbols',
+#                         default='update')
+
+
+    parser.add_argument('--delete_schema',type=bool,
+                    help='delete schema (default=False)',
+                    default=False)
+    parser.add_argument('--delete_table',type=bool,
+                    help='delete_table schema (default=False)',
+                    default=False)
+    parser.add_argument('--fetch_from_yahoo',type=bool,
+                    help='fetch_from_yahoo schema (default=False)',
+                    default=False)
+    parser.add_argument('--build_table',type=bool,
+                    help='build_table schema (default=False)',
+                    default=False)
+    parser.add_argument('--update_table',type=bool,
+                    help='update_table schema (default=False)',
+                    default=False)
+    parser.add_argument('--beg_date_yyyymmddhhmmss',type=str,
+                    help='yyyymmdd or yyyymmddhhmmss string that is converted to beginning datetime.dateime object for yahoo fetches (default datetime.datetime.now - datetime.timedelta(days_to_fetch)',
+                    nargs='?')
+    parser.add_argument('--end_date_yyyymmddhhmmss',type=str,
+                    help='yyyymmdd or yyyymmddhhmmss string that is converted to ending datetime.dateime object for yahoo fetches (default datetime.datetime.now)',
+                    nargs='?')
+    parser.add_argument('--dburl',type=str,
+                    help='database url (None will be localhost)',
+                    nargs='?')
+    parser.add_argument('--databasename',type=str,
+                    help='databasename (None will be maindb)',
+                    nargs='?')
+    parser.add_argument('--username',type=str,
+                    help='username (None will be postgres)',
+                    nargs='?')
+    parser.add_argument('--password',type=str,
+                    help='password (None will be blank)',
+                    nargs='?')
+    parser.add_argument('--schema_name',type=str,
+                    help='schema name for table (None will be test_schema)',
+                    nargs='?')
+    parser.add_argument('--yahoo_daily_table',type=str,
+                    help='table name for table (None will be yahoo_daily)',
+                    nargs='?')
+    parser.add_argument('--initial_symbol_list',type=str,
+                    help='comma separated list of symbols, like SPY,AAPL,XLE (default is list of SP500 stocks and main sector and commodity etfs)',
+                    nargs='?')
+    parser.add_argument('--days_to_fetch',type=str,
+                    help=f"number of days of history to fetch (None will be {DEFAULT_DAYS_TO_FETCH})",
+                    default=DEFAULT_DAYS_TO_FETCH)
     args = parser.parse_args()
-    action = args.action
-    isl = args.initial_stock_list
-    if isl is not None:
-        isl = isl.split(',')
-    hb = HistoryBuilder(initial_stock_list=isl)
-    hb.do_action(action)
+
+    days_to_fetch = args.days_to_fetch
+    end_date = dt.datetime.now() 
+    if args.end_date_yyyymmddhhmmss is not None:
+        yyyy = args.end_date_yyyymmddhhmmss[0:4]
+        month = args.end_date_yyyymmddhhmmss[4:6]
+        day = args.end_date_yyyymmddhhmmss[6:8]
+        #dt.datetime.max.time()        
+        hour = args.end_date_yyyymmddhhmmss[8:10] if len(args.end_date_yyyymmddhhmmss)>8 else 23
+        minute = args.end_date_yyyymmddhhmmss[10:12] if len(args.end_date_yyyymmddhhmmss)>10 else 1
+        second =  args.end_date_yyyymmddhhmmss[12:14] if len(args.end_date_yyyymmddhhmmss)>12 else 1
+        end_date = dt.datetime(yyyy,month,day,hour,minute,second)
+    beg_date = end_date  - dt.timedelta(days_to_fetch) 
+    
+    if args.beg_date_yyyymmddhhmmss is not None:
+        yyyy = args.beg_date_yyyymmddhhmmss[0:4]
+        month = args.beg_date_yyyymmddhhmmss[4:6]
+        day = args.beg_date_yyyymmddhhmmss[6:8]
+        #dt.datetime.max.time()        
+        hour = args.beg_date_yyyymmddhhmmss[8:10] if len(args.beg_date_yyyymmddhhmmss)>8 else 23
+        minute = args.beg_date_yyyymmddhhmmss[10:12] if len(args.beg_date_yyyymmddhhmmss)>10 else 1
+        second =  args.beg_date_yyyymmddhhmmss[12:14] if len(args.beg_date_yyyymmddhhmmss)>12 else 1
+        beg_date = dt.datetime(yyyy,month,day,hour,minute,second)
+    
+    hb = HistoryBuilder(
+        args.delete_schema, args.delete_table, 
+        args.fetch_from_yahoo, args.build_table, args.update_table, 
+        beg_date, end_date, args.dburl, 
+        args.databasename, args.username, args.password, 
+        args.schema_name, args.yahoo_daily_table, args.initial_symbol_list, 
+        args.days_to_fetch, logger)
+    
+    hb.execute()
     end_time = dt.datetime.now()
-    print(start_time)
-    print(end_time - start_time)
+    logger.info(f'ending at {end_time}')
+    elapsed_time = end_time - start_time
+    logger.info(f'elapsed time {elapsed_time}')
         
     
