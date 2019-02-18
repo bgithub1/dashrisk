@@ -8,7 +8,7 @@ Usage: (make sure your virtualenv has all the dependencies in ../requirements.tx
 
 1. Build database from scratch, using symbols from the SP 500, the sector spdr ETF's 
    and the commodity ETFs
-$ python3 build_history.py --create_schema True --fetch_from_yahoo True --build_table True
+$ python3 build_history.py --delete_schema True --fetch_from_yahoo True --build_table True
 
 2. Update the existing symbols in the database
 $ python3 build_history.py --update_table  True
@@ -296,6 +296,7 @@ class HistoryBuilder():
     
     def execute(self):
         if self.delete_schema:
+            self.pga.exec_sql_raw(f"DROP SCHEMA IF EXISTS  {self.schema_name};")
             self.pga.exec_sql_raw(f"create schema {self.schema_name};")
         
         if self.delete_table:
