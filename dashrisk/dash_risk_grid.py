@@ -175,11 +175,34 @@ if __name__ == '__main__':
     parser.add_argument('--ip',type=str,default='127.0.0.1',help='ip address of server')
     parser.add_argument('--port',type=int,default=8400,help='port of server')
     parser.add_argument('--use_postgres',type=bool,default=False,help='set to True if using Postgres db for history data')
+    parser.add_argument('--dburl',type=str,
+                    help='database url (None will be localhost)',
+                    nargs='?')
+    parser.add_argument('--databasename',type=str,
+                    help='databasename (None will be maindb)',
+                    nargs='?')
+    parser.add_argument('--username',type=str,
+                    help='username (None will be postgres)',
+                    nargs='?')
+    parser.add_argument('--password',type=str,
+                    help='password (None will be blank)',
+                    nargs='?')
+    parser.add_argument('--schema_name',type=str,
+                    help='schema name for table (None will be test_schema)',
+                    nargs='?')
+    parser.add_argument('--yahoo_daily_table',type=str,
+                    help='table name for table (None will be yahoo_daily)',
+                    nargs='?')
     args = parser.parse_args()
+    
     ip = args.ip
     port = args.port 
-    
-    default_risk_data = update_risk_data(None,args.use_postgres)
+    #None,args.use_postgres,
+    default_risk_data = update_risk_data(
+        None, USE_POSTGRES=args.use_postgres, dburl=args.dburl, 
+        databasename=args.databasename, username=args.username, 
+        password=args.password, schema_name=args.schema_name, 
+        yahoo_daily_table=args.yahoo_daily_table)
     app = dash.Dash(__name__)
     app.secret_key = 'development key'
          

@@ -170,9 +170,9 @@ class HistoryBuilder():
         stk_files = [s+'.csv' for s in self.initial_symbol_list] if self.initial_symbol_list is not None else   [f for f in listdir(STOCKS_DIR) if isfile(join(STOCKS_DIR, f))] 
         for csv_name in stk_files:
             csv_path = f'{STOCKS_DIR}/{csv_name}'
-            df = pd.read_csv(csv_path)
-            sym = csv_name.replace('.csv','')            
             try:
+                df = pd.read_csv(csv_path)
+                sym = csv_name.replace('.csv','')            
                 self.write_symbol_to_pg(sym,df)
             except Exception as e:
                 self.logger.warn(str(e))
@@ -192,6 +192,7 @@ class HistoryBuilder():
             if len(df_to_write)<1:
                 self.logger.warn(f'write_symbol_to_pg: no new data to write for symbol {symbol}')
                 return
+            self.logger.info(f'writing {symbol} to database')
             self.pga.write_df_to_postgres_using_metadata(df=df_to_write,table_name=self.full_table_name)
         else:
             raise ValueError(f'cannot find Yahoo data for {symbol}')        
@@ -296,7 +297,7 @@ class HistoryBuilder():
 #         self.action_dict[action]()
         
         
-    def delete_table(self):
+    def delete_pg_table(self):
         self.pga.exec_sql_raw(f"drop table if exists {self.full_table_name}")
         sql = f"""
         create table {self.full_table_name}(
@@ -314,7 +315,7 @@ class HistoryBuilder():
     
     def execute(self):
         if self.delete_table:
-            self.delete_table()
+            self.delete_pg_table()
 
         if self.delete_schema:
             self.pga.exec_sql_raw(f"DROP SCHEMA IF EXISTS  {self.schema_name};")
