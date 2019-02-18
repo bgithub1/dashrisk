@@ -8,7 +8,7 @@ Usage: (make sure your virtualenv has all the dependencies in ../requirements.tx
 
 1. Build database from scratch, using symbols from the SP 500, the sector spdr ETF's 
    and the commodity ETFs
-$ python3 build_history.py --fetch_from_yahoo True --build_table True
+$ python3 build_history.py --create_schema True --fetch_from_yahoo True --build_table True
 
 2. Update the existing symbols in the database
 $ python3 build_history.py --update_table  True
@@ -149,24 +149,24 @@ class HistoryBuilder():
 #             pga2.exec_sql_raw(f"create schema {self.schema_name};")
 #         except:
 #             pass
-#         try:
-#             # always try to build the table in case it's the first time
-#             sql = f"""
-#             create table {self.full_table_name}(
-#                 symbol text not null,
-#                 date Date not null,
-#                 open numeric not null,
-#                 high numeric not null,
-#                 low numeric not null,
-#                 close numeric not null,
-#                 adj_close numeric not null,
-#                 volume integer not null,
-#                 primary key(symbol,Date));
-#             """            
-#             pga2.exec_sql_raw(sql) 
-#         except:
-#             # ignore
-#             pass
+        try:
+            # always try to build the table in case it's the first time
+            sql = f"""
+            create table {self.full_table_name}(
+                symbol text not null,
+                date Date not null,
+                open numeric not null,
+                high numeric not null,
+                low numeric not null,
+                close numeric not null,
+                adj_close numeric not null,
+                volume integer not null,
+                primary key(symbol,Date));
+            """            
+            self.pga.exec_sql_raw(sql) 
+        except:
+            # ignore
+            pass
         stk_files = [s+'.csv' for s in self.initial_symbol_list] if self.initial_symbol_list is not None else   [f for f in listdir(STOCKS_DIR) if isfile(join(STOCKS_DIR, f))] 
         for csv_name in stk_files:
             csv_path = f'{STOCKS_DIR}/{csv_name}'
@@ -318,7 +318,7 @@ class HistoryBuilder():
             hist_dict = self.build_history_dict()
             self.write_hist_dict_to_csv(hist_dict=hist_dict)
         if self.build_table:
-            self.build_from_csvs()
+            self.build_pg_from_csvs()
         if self.update_table:
             self.update_yahoo_daily(self.beg_date, self.end_date)
 
