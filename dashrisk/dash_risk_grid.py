@@ -144,7 +144,10 @@ def update_risk_data(contents,USE_POSTGRES=False,
         df = parse_contents(contents)
     print(f'Start computing VaR {datetime.datetime.now()}')
     if USE_POSTGRES:
-        hb = bh.HistoryBuilder(dburl,databasename,username,password,schema_name,yahoo_daily_table)
+#         hb = bh.HistoryBuilder(dburl,databasename,username,password,schema_name,yahoo_daily_table)
+        hb = bh.HistoryBuilder(dburl=dburl, databasename=databasename, 
+                               username=username, password=password, 
+                               schema_name=schema_name, yahoo_daily_table=yahoo_daily_table, )
         history_fetcher = varm.PostgresFetcher(hb)
     else:
         history_fetcher = varm.YahooFetcher()
