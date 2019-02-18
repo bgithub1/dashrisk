@@ -73,8 +73,8 @@ grid_style = {'display': 'grid',
 
 
 #********
-# DEFAULT_PORTFOLIO_NAME=  'hi_volume_stocks.csv'             
-DEFAULT_PORTFOLIO_NAME=  'test_portfolio.csv'             
+DEFAULT_PORTFOLIO_NAME=  'hi_volume_stocks.csv'             
+# DEFAULT_PORTFOLIO_NAME=  'test_portfolio.csv'             
 DF_NO_POSITION = pd.read_csv(DEFAULT_PORTFOLIO_NAME)
 
 dt = dg.GridTable('dt','Risk Profile').html
@@ -177,6 +177,7 @@ if __name__ == '__main__':
     parser = ap.ArgumentParser()
     parser.add_argument('--ip',type=str,default='127.0.0.1',help='ip address of server')
     parser.add_argument('--port',type=int,default=8400,help='port of server')
+    parser.add_argument('--initial_portolio',type=str,default=DEFAULT_PORTFOLIO_NAME,help='initial portfolio to Load')
     parser.add_argument('--use_postgres',type=bool,default=False,help='set to True if using Postgres db for history data')
     parser.add_argument('--dburl',type=str,
                     help='database url (None will be localhost)',
