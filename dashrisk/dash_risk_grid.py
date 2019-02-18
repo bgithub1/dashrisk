@@ -267,7 +267,11 @@ if __name__ == '__main__':
     def process_risk_data(contents):
         if contents is None:
             return default_risk_data
-        return update_risk_data(contents,args.use_postgres)
+        return update_risk_data(
+                        contents, USE_POSTGRES=args.use_postgres, dburl=args.dburl, 
+                        databasename=args.databasename, username=args.username, 
+                        password=args.password, schema_name=args.schema_name, 
+                        yahoo_daily_table=args.yahoo_daily_table)
         
     prog = pgcm.ProgressComponent(app, process_risk_data, 'spinner', my_display_component_div_to_show, my_display_component_div_to_hide)
     prog.callbacks
