@@ -186,7 +186,9 @@ class HistoryBuilder():
             df['symbol'] = symbol
             df_this_stock = self.yahoo_to_pg(df)
             df_already_there = self.pga.get_sql(f"select date from {self.full_table_name} where symbol='{symbol}'")
-            df_to_write = df_this_stock[~df_this_stock.date.isin(df_already_there.date)]
+            df_to_write = df_this_stock.copy()
+            if len(df_already_there) > 0:
+                df_to_write = df_this_stock[~df_this_stock.date.isin(df_already_there.date)]
             if len(df_to_write)<1:
                 self.logger.warn(f'write_symbol_to_pg: no new data to write for symbol {symbol}')
                 return
@@ -264,9 +266,10 @@ class HistoryBuilder():
     
     def yahoo_to_pg(self,df_in):
         df = df_in.copy()
-        df['date'] = df.index
-        df.index = range(len(df))
         df = df.rename(columns = {c:c.lower().replace(' ','_') for c in df.columns.values})
+        if 'date' not in df.columns.values and df.index.name.lower()=='date':
+            df['date'] = df.index
+            df.index = range(len(df))
         return df
     
     def pg_to_yahoo(self,df_in):
@@ -293,27 +296,30 @@ class HistoryBuilder():
 #         self.action_dict[action]()
         
         
+    def delete_table(self):
+        self.pga.exec_sql_raw(f"drop table if exists {self.full_table_name}")
+        sql = f"""
+        create table {self.full_table_name}(
+            symbol text not null,
+            date Date not null,
+            open numeric not null,
+            high numeric not null,
+            low numeric not null,
+            close numeric not null,
+            adj_close numeric not null,
+            volume integer not null,
+            primary key(symbol,Date));
+        """            
+        self.pga.exec_sql_raw(sql) 
     
     def execute(self):
+        if self.delete_table:
+            self.delete_table()
+
         if self.delete_schema:
             self.pga.exec_sql_raw(f"DROP SCHEMA IF EXISTS  {self.schema_name};")
             self.pga.exec_sql_raw(f"create schema {self.schema_name};")
         
-        if self.delete_table:
-            self.pga.exec_sql_raw(f"drop table if exists {self.full_table_name}")
-            sql = f"""
-            create table {self.full_table_name}(
-                symbol text not null,
-                date Date not null,
-                open numeric not null,
-                high numeric not null,
-                low numeric not null,
-                close numeric not null,
-                adj_close numeric not null,
-                volume integer not null,
-                primary key(symbol,Date));
-            """            
-            self.pga.exec_sql_raw(sql) 
             
         if self.fetch_from_yahoo:
             hist_dict = self.build_history_dict()
