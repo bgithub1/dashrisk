@@ -20,6 +20,12 @@ import time
 if __name__ == '__main__':
     parser = ap.ArgumentParser()
     parser.add_argument('--hour',type=int,help='hour to start database update',default='1')
+    parser.add_argument('--username',type=str,
+                    help='username (None will be postgres)',
+                    nargs='?')
+    parser.add_argument('--password',type=str,
+                    help='password (None will be blank)',
+                    nargs='?')
     args = parser.parse_args()
     h = args.hour
     logger = schedule_it.init_root_logger("logfile.log", "INFO")
@@ -27,8 +33,9 @@ if __name__ == '__main__':
         logger.info(f"scheduling update for hour {h}")
         schedule_it.ScheduleNext('hour', h,logger = logger)
         logger.info(f"updating history")
-        bh = build_history.HistoryBuilder(logger=logger)
-        bh.update_yahoo_daily()
+        bh = build_history.HistoryBuilder(update_table=True,username=args.username,password=args.password,logger=logger)
+        bh.execute()
+#         bh.update_yahoo_daily()
         logger.info(f"sleeping for an hour before next scheduling")
         time.sleep(60*60)
         
