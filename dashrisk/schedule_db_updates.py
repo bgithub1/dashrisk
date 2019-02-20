@@ -31,7 +31,8 @@ if __name__ == '__main__':
     logger = schedule_it.init_root_logger("logfile.log", "INFO")
     while True:
         logger.info(f"scheduling update for hour {h}")
-        schedule_it.ScheduleNext('hour', h,logger = logger)
+        sch = schedule_it.ScheduleNext('hour', h,logger = logger)
+        sch.wait()
         logger.info(f"updating history")
         bh = build_history.HistoryBuilder(update_table=True,username=args.username,password=args.password,logger=logger)
         bh.execute()
