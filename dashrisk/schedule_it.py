@@ -57,6 +57,9 @@ class ScheduleNext():
         this_time  = dt.datetime.now(self.timezone)
         next_time = self.next_execute_time(this_time)
         secs_to_wait = (next_time-this_time).total_seconds()
+        if secs_to_wait<0:
+            self.logger.info("Not sleeping")
+            return
         self.logger.info("Sleeping at time %s for %f hours" %(str(this_time),secs_to_wait/3600.0))
         time.sleep(secs_to_wait)
         self.logger.info("Waking at time: %s" %(str(next_time)))

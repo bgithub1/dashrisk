@@ -209,7 +209,8 @@ class HistoryBuilder():
         group by symbol
         """
                 
-        df_last_dates = pga2.get_sql(sql_get)
+        df_last_dates = pga2.get_sql(sql_get).sort_values('symbol')
+        total_to_update = len(df_last_dates)
         for i in range(len(df_last_dates)):
             r  = df_last_dates.iloc[i]
             
@@ -222,14 +223,14 @@ class HistoryBuilder():
                 # move the begin date up because you already have this data
                 beg_date = db_max_date + dt.timedelta(1)   
             if beg_date >= end_date:
-                self.logger.info(f'{r.symbol} nothing to update')
+                self.logger.info(f'{r.symbol} number {i} of {total_to_update}  nothing to update')
                 continue   
             if end_date <= db_max_date:
-                self.logger.info(f'{r.symbol} nothing to update')
+                self.logger.info(f'{r.symbol} number {i} of {total_to_update}  nothing to update')
                 continue   
             try:
                 self.add_symbol_to_pg(r.symbol, beg_date, end_date)
-                self.logger.info(f'{r.symbol} updated')
+                self.logger.info(f'{r.symbol} number {i} of {total_to_update}  updated')
             except Exception as e:
                 self.logger.warn(str(e))
                 continue
