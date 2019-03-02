@@ -64,7 +64,7 @@ class YahooFetcher():
             if symbol in self.history_dict:
                 continue
             self.history_dict[symbol] = self.fetch_history(symbol, dt_beg, dt_end)
-            
+           
     def fetch_history(self,symbol,dt_beg,dt_end):
         if symbol in self.history_dict:
             return self.history_dict[symbol]            
