@@ -24,6 +24,64 @@ from dashrisk import var_models as vm
 import datetime
 import matplotlib.pyplot as plt
 from textwrap import wrap
+import argparse as ap
+
+RANDOM_PORTFOLIO_PATH = './temp_folder/df_random_portfolio.csv'
+SPDR_HISTORY_PATH = './temp_folder/df_hist_portfolio_hedge.csv'
+
+def fetch_histories(symbol_list,dt_beg=None,dt_end=None):
+    yf = vm.YahooFetcher()
+    dt_end = dt_end if dt_end is not None else datetime.datetime.now()
+    dt_beg = dt_beg if dt_beg is not None else dt_end - datetime.timedelta(30*5)
+    yf.fetch_histories(symbol_list, dt_beg, dt_end)
+    histories = yf.history_dict
+    close_dict = {symbol:list(histories[symbol].close) for symbol in histories.keys()}
+    df_hist = pd.DataFrame(close_dict)
+    return df_hist
+
+def create_random_portfolio_history(num_of_symbols=20,weights=None,dt_beg=None,dt_end=None,csv_save_path=None):
+    url_constituents = 'https://datahub.io/core/s-and-p-500-companies/r/constituents.csv'
+    df_constit = pd.read_csv(url_constituents)
+    all_symbols = sorted(list(df_constit.Symbol))
+    random_indices = np.random.randint(0,len(all_symbols)-1,num_of_symbols)
+    symbol_list = [all_symbols[i] for i in random_indices]
+    w = weights
+    if w is None:
+        w = np.random.rand(len(symbol_list))
+    port_path = RANDOM_PORTFOLIO_PATH if csv_save_path is None else csv_save_path
+    df =  create_portfolio_history(symbol_list,weights=w,dt_beg=dt_beg,dt_end=dt_end)
+    df_spdr = fetch_sector_spdr_df(refresh=True)
+    df_spdr = df_spdr.drop('SPY',axis=1)
+    df_spdr['port'] = df.port
+    df_spdr.to_csv(port_path,index=None)
+    return df_spdr
+
+def create_portfolio_history(symbol_list,weights,dt_beg=None,dt_end=None):
+    '''
+    Create a Data frame with columns 'date' and 'port', where port lists the value of a 
+    randomly created portfolio of 20 SP 500 stocks, with  weights = weights.  If weights is None, 
+        then randomly assign weights.
+    :param num_of_symbols: default is 20
+    :param dt_beg: default is 150
+    :param dt_end: default is today
+    '''
+    df_hist = fetch_histories(symbol_list,dt_beg,dt_end)
+    hist_matrix = df_hist[symbol_list].as_matrix()
+    # now create random weights
+    prices = hist_matrix @ weights
+    df = pd.DataFrame({'port':prices})
+    return df
+
+def fetch_sector_spdr_df(refresh=False,csv_save_path=None):
+    hist_path = SPDR_HISTORY_PATH if csv_save_path is None else csv_save_path
+    if refresh:
+        symbol_list = ['SPY','XLE', 'XLU', 'XLK', 'XLB', 'XLP', 'XLY', 'XLI', 'XLC', 'XLV', 'XLF']
+        df_hist = fetch_histories(symbol_list)
+        df_hist.to_csv(hist_path,index=None)
+    else:
+        df_hist = pd.read_csv(hist_path)
+    return df_hist  
+
 
 
 # main model class
@@ -34,32 +92,41 @@ class SingleLayerNet(nn.Module):
     def forward(self, x):
         return self.linear1(x)
 
+
 class PytorchHedge():
-    def __init__(self,df=None,portfolio_value_col=None,date_column=None,num_of_test_days=None):
-        self.portfolio_value_col = portfolio_value_col if portfolio_value_col is not None else 'SPY'
-        self.df = df if df is not None else self.fetch_sector_spdr_df()
+    '''
+    Create hedge rations using a simple pytorch Linear model.
+    
+    Toy Example where your portfolio is SPY, and you want to hedge it using the sector spdr's:
+    ph = PytorchHedge()
+    ph.run_model()
+    ph.plot_hedge_ratios_vs_real()
+    print(ph.hedge_ratio_dict)
+
+    Example of a 20 random memebers of the SP 500 as your portfolio, with random weights, and the sector spdr's as your hedge
+    yf = 
+    '''
+    def __init__(self,df,portfolio_value_col,date_column=None,num_of_test_days=None):
+        '''        
+        :param df: pandas DataFrame containing historical prices for each security that you will use to hedge,
+            and the prices of your portfolio in a column whose name = portfolio_value_col.
+            If df == None, then this class will use the sector spdr ETFs as the hedging securities
+        :param portfolio_value_col: the name of the column in df which holds the hitorical prices of your portfolio.
+            IF None, then use 'SPY' has your portfolio.
+        :param date_column: None ,if your DataFrame does not have a date column, otherwise the column name of that column
+        :param num_of_test_days: Number or rows in df to use as out of sample data. If None, then use int(len(df) * .1).
+            The size of the training set will equal len(df) - num_of_test_days
+        '''
+        self.portfolio_value_col = portfolio_value_col
+        self.df = df
         self.date_column  = date_column
         ntd = num_of_test_days
         if ntd is None:
             ntd = int(len(self.df) * .1)
         self.num_of_test_days = ntd
+        
+
     
-    def fetch_sector_spdr_df(self):
-        hist_path = './temp_folder/df_hist_portfolio_hedge.csv'
-        if not os.path.isfile(hist_path):
-            yf = vm.YahooFetcher()
-            portfolio_value_col = self.portfolio_value_col
-            symbol_list = [portfolio_value_col] + ['XLE', 'XLU', 'XLK', 'XLB', 'XLP', 'XLY', 'XLI', 'XLC', 'XLV', 'XLF']
-            dt_end = datetime.datetime.now()
-            dt_beg = dt_end - datetime.timedelta(30*5)
-            yf.fetch_histories(symbol_list, dt_beg, dt_end)
-            histories = yf.history_dict
-            close_dict = {symbol:list(histories[symbol].close) for symbol in histories.keys()}
-            df_hist = pd.DataFrame(close_dict)
-            df_hist.to_csv(hist_path,index=None)
-        else:
-            df_hist = pd.read_csv(hist_path)
-        return df_hist  
     
     def run_model(self):
         Ynp = self.df[self.portfolio_value_col].as_matrix()[:-self.num_of_test_days]
@@ -145,7 +212,25 @@ class PytorchHedge():
         plt.show()
 
 if __name__ == '__main__':
-    ph = PytorchHedge()
+#     parser = ap.ArgumentParser()
+#     parser.add_argument('--portfolio_symbols',type=str,
+#                         help='Comma separated list of symbols in portfolio to hedge, whose history you must fetch (Default is SPY',
+#                         nargs="?")
+#     parser.add_argument('--hedge_symbols',type=str,
+#                         help='Comma separated list of symbols in hedge list, whose history you must fetch (Default is SPY',
+#                         nargs="?")
+#     args = parser.parse_args()
+#     port_sym_list = args.porfolio_symbols
+
+    use_spy = False
+    if use_spy:
+        portfolio_column_name = 'SPY'
+        df = fetch_sector_spdr_df()
+    else:
+        portfolio_column_name = 'port'
+        df = pd.read_csv(RANDOM_PORTFOLIO_PATH)
+#         df = create_random_portfolio_history()
+    ph = PytorchHedge(df,portfolio_column_name)
     ph.run_model()
     ph.plot_hedge_ratios_vs_real()
     print(ph.hedge_ratio_dict)
