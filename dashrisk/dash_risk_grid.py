@@ -11,7 +11,6 @@ if  not '../' in sys.path:
 
 import dash
 from dash.dependencies import Input, Output, State
-
 import dash_core_components as dcc
 import dash_html_components as html
 import pandas as pd
@@ -26,7 +25,9 @@ import io
 from dashrisk import dash_grid as dg
 from dashrisk import progress_component as pgcm
 from dashrisk import build_history as bh
+from dashrisk import portfolio_hedge as ph
 import argparse as ap
+import numpy as np
 
 
 # Step 3: Define some often used variables
@@ -81,6 +82,7 @@ dt = dg.GridTable('dt','Risk Profile').html
 dt_pos = dg.GridTable('dt_pos','Original Position').html
 dt_greeks_full = dg.GridTable('dt_greeks_full','Greeks Full').html
 dt_greeks_by_underlying = dg.GridTable('dt_greeks_by_underlying','Greeks By Underlying').html
+dt_hedge_ratios = dg.GridTable('dt_hedge_ratios','Best Hedge Portfolio using Sector SPDR ETFs').html
 
 # my_graph = dg.GridGraph('my-graph','Var By Underlying',['no_position'],[0],'Underlying','Value at Risk').html
 loader_div = html.Div([],className='loader')
@@ -168,10 +170,39 @@ def update_risk_data(contents,USE_POSTGRES=False,
     # merge var and greeks
     df_risk_all = df_greeks.merge(df_positions_all[['symbol','position_var']],how='inner',on='symbol')
     df_risk_all = df_risk_all.drop(['option_price'],axis=1)
+    
+    # do hedge values
+    # first create a history of this portfolio as on price per day
+    symbol_list = sorted(df_atm_price.underlying)
+    series_weights = df_greeks[['underlying','delta']].groupby('underlying').sum()['delta']
+    weights = [series_weights[c] for c in symbol_list] 
+
+    df_port_prices = vm.get_history_matrix()
+    hist_matrix = df_port_prices[symbol_list].as_matrix()
+    # now create random weights
+    port_price_history = hist_matrix @ weights
+    df_port = pd.DataFrame({'date':df_port_prices.date,'port':port_price_history})
+    
+    # next get price history of sector spdrs
+    spdr_symbols = [ 'XLB', 'XLC', 'XLE', 'XLF', 'XLI', 'XLK', 'XLP', 'XLU', 'XLV', 'XLY']
+    df_sector_spdr = pd.DataFrame({'symbol':spdr_symbols,'position':np.repeat(1, len(spdr_symbols))})
+    vm_hedge = varm.VarModel(df_sector_spdr,history_fetcher)
+    df_hedge_prices = vm_hedge.get_history_matrix()
+    
+    # next, merge history of "portfolio value" with history of spdr's.
+    #  MAKE SURE THAT THE FIRST COLUMN IS THE PORTFOLIO HISTORY, AND NAME THAT COLUMN "port"
+    df_hedge_prices = df_hedge_prices.merge(df_port,how='inner',on='date')
+    df_hedge_prices = df_hedge_prices[['port'] + spdr_symbols]
+
+    port_hedger = ph.MinVarianceHedge(df_hedge_prices, 'port')
+    port_hedger.run_model()
+    hedge_values = [port_hedger.hedge_ratio_dict[s] * port_hedger.last_day_ratio for s in spdr_symbols]
+    df_hedge_ratios = pd.DataFrame({'symbol':spdr_symbols,'hedge':hedge_values})
     n = datetime.datetime.now()
     print(f'End computing VaR {n}')
     yyyymmddhhmmssmmmmmm = '%04d%02d%02d%02d%02d%02d%06d' %(n.year,n.month,n.day,n.hour,n.minute,n.second,n.microsecond)
-    return {'yyyymmddhhmmssmmmmmm':str(yyyymmddhhmmssmmmmmm),'df_std':df_std.to_dict('rows'),'df_risk_all':df_risk_all.to_dict('rows'),'port_var':port_var,'sp_dollar_equiv':sp_dollar_equiv}
+    return {'yyyymmddhhmmssmmmmmm':str(yyyymmddhhmmssmmmmmm),'df_std':df_std.to_dict('rows'),'df_risk_all':df_risk_all.to_dict('rows'),
+            'port_var':port_var,'sp_dollar_equiv':sp_dollar_equiv,'df_hedge_ratios':df_hedge_ratios.to_dict('rows')}
 
 if __name__ == '__main__':
     parser = ap.ArgumentParser()
@@ -252,8 +283,7 @@ if __name__ == '__main__':
             ),       
             html.Div(
                 html.Div([
-                    dt, dt_pos, dt_greeks_full,dt_greeks_by_underlying,#my_graph
-                    ], 
+                    dt, dt_pos, dt_greeks_full,dt_greeks_by_underlying,dt_hedge_ratios], 
                     className='item1',style=grid_style
                 ),
                 id='risk_tables'
@@ -393,21 +423,22 @@ if __name__ == '__main__':
                 className='item1',style=grid_style
             )
             
+        # get and format DataFrames
         df_risk_by_symbol = pd.DataFrame(data['df_risk_all'])
         risk_agg_cols = [c for c in df_risk_by_symbol.columns.values if c not in ['symbol','position']]
         df_risk_by_symbol = format_df(df_risk_by_symbol,['symbol','underlying','position'])
         # all by underlying
         df_risk_by_underlying = df_risk_by_symbol[risk_agg_cols].groupby('underlying',as_index=False).sum()
         df_risk_by_underlying = format_df(df_risk_by_underlying,['underlying'])
-        # get and format DataFrames
+        df_hedge_ratios = format_df(pd.DataFrame(data['df_hedge_ratios']),['symbol'])
             
         # create GridTable's
         dt_risk_by_symbol = dg.GridTable('dt_risk_by_symbol','Value at Risk and Greeks by Symbol',df_risk_by_symbol).html
         dt_risk_by_underlying = dg.GridTable('dt_risk_by_underlying','Value at Risk and Greeks by Underlying',df_risk_by_underlying).html
-            
+        dt_hedge_ratios = dg.GridTable('dt_hedge_ratios','Best Hedge Portfolio using Sector SPDR ETFs',df_hedge_ratios).html
         # create return Div
         ret = html.Div([
-            dt_risk_by_symbol,dt_risk_by_underlying
+            dt_risk_by_symbol,dt_risk_by_underlying,dt_hedge_ratios
             ], 
             className='item1',style=grid_style
         )

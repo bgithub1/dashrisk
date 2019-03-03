@@ -93,7 +93,141 @@ class SingleLayerNet(nn.Module):
         return self.linear1(x)
 
 
-class PytorchHedge():
+class PortfolioHedge():
+    def __init__(self,df,portfolio_value_col,date_column=None,num_of_test_days=None):
+        '''        
+        :param df: pandas DataFrame containing historical prices for each security that you will use to hedge,
+            and the prices of your portfolio in a column whose name = portfolio_value_col.
+            If df == None, then this class will use the sector spdr ETFs as the hedging securities
+        :param portfolio_value_col: the name of the column in df which holds the hitorical prices of your portfolio.
+            IF None, then use 'SPY' has your portfolio.
+        :param date_column: None ,if your DataFrame does not have a date column, otherwise the column name of that column
+        :param num_of_test_days: Number or rows in df to use as out of sample data. If None, then use int(len(df) * .1).
+            The size of the training set will equal len(df) - num_of_test_days
+        '''
+        self.portfolio_value_col = portfolio_value_col
+        self.df = df
+        self.date_column  = date_column
+        ntd = num_of_test_days
+        if ntd is None:
+            ntd = int(len(self.df) * .1)
+        self.num_of_test_days = ntd
+    
+    def create_last_day_ratio(self,hedge_ratio_dict):
+        '''
+        Create ratio between the simulated last training day price, and the actual training portfolio price
+
+        '''
+        df_train = self.df.iloc[:-self.num_of_test_days]        
+        non_port_columns = sorted(list(filter(lambda c: c != self.portfolio_value_col,self.df.columns.values)))
+        last_day_hedge_price_vector = np.array(df_train[non_port_columns].iloc[-1])
+        hedge_ratio_vector = [hedge_ratio_dict[k] for k in non_port_columns]
+        last_day_simulated_price = last_day_hedge_price_vector @ hedge_ratio_vector
+        last_day_real_port = df_train[self.portfolio_value_col].iloc[-1]
+        last_day_ratio = last_day_real_port / last_day_simulated_price
+        return last_day_ratio
+    
+    def get_train_test_values(self):
+        df = self.df.copy()
+        ntd = self.num_of_test_days
+        yreal = df[self.portfolio_value_col].as_matrix().reshape(-1)
+        df = df.drop(self.portfolio_value_col,axis=1)
+        if self.date_column is not None:
+            df = df.drop(self.date_column)
+        all_Xnp = df.as_matrix().reshape(-1,len(df.columns.values))
+        hedge_ratios = np.array([self.hedge_ratio_dict[symbol] for symbol in df.columns.values])
+        ysim = np.array(all_Xnp @ hedge_ratios + self.bias) * self.last_day_ratio
+        # plot with without pandas
+        x_train = list(range(len(all_Xnp)))[:-ntd]
+        x_test =  list(range(len(all_Xnp)))[-ntd-1:]
+        ysim_train = ysim[:-ntd]
+        ysim_test = ysim[-ntd-1:] 
+        yreal_train = yreal[:-ntd]
+        yreal_test = yreal[-ntd-1:]
+        ret_dict = {'x_train':x_train,'x_test':x_test,
+                'ysim_train':ysim_train,'ysim_test':ysim_test,
+                'yreal_train':yreal_train,'yreal_test':yreal_test
+        }
+        return ret_dict
+        
+    def plot_hedge_ratios_vs_real(self):
+#         df = self.df.copy()
+#         ntd = self.num_of_test_days
+#         yreal = df[self.portfolio_value_col].as_matrix().reshape(-1)
+#         df = df.drop(self.portfolio_value_col,axis=1)
+#         if self.date_column is not None:
+#             df = df.drop(self.date_column)
+#         all_Xnp = df.as_matrix().reshape(-1,len(df.columns.values))
+#         hedge_ratios = np.array([self.hedge_ratio_dict[symbol] for symbol in df.columns.values])
+#         ysim = np.array(all_Xnp @ hedge_ratios + self.bias) * self.last_day_ratio
+#         # plot with without pandas
+#         x_train = list(range(len(all_Xnp)))[:-ntd]
+#         x_test =  list(range(len(all_Xnp)))[-ntd-1:]
+#         ysim_train = ysim[:-ntd]
+#         ysim_test = ysim[-ntd-1:] 
+#         yreal_train = yreal[:-ntd]
+#         yreal_test = yreal[-ntd-1:]
+        d = self.get_train_test_values()
+        x_train = d['x_train']
+        x_test = d['x_test']
+        ysim_train = d['ysim_train']
+        ysim_test = d['ysim_test']
+        yreal_train = d['yreal_train']
+        yreal_test = d['yreal_test']
+        fig, ax = plt.subplots(figsize = (16,7))
+    
+        ax.plot(x_train,yreal_train,color='blue',label='y_train_real')
+        ax.plot(x_train,ysim_train,color='orange',label='y_train_model')
+        ax.plot(x_test,yreal_test,color='red',label='y_test_real')
+        ax.plot(x_test,ysim_test,color='green',label='y_test_model')
+        ax.legend()
+        ax.grid()
+        hr = {k:round(self.hedge_ratio_dict[k],4) for k in self.hedge_ratio_dict.keys()}
+        t = f'{self.portfolio_value_col} vs {hr}'
+        t = t.replace("'","")
+        title = ax.set_title("\n".join(wrap(t, 60)))
+        fig.tight_layout()
+        title.set_y(1.05)
+        fig.subplots_adjust(top=0.8)
+        plt.show()
+
+
+class MinVarianceHedge(PortfolioHedge):
+    def __init__(self,df,portfolio_value_col,date_column=None,num_of_test_days=None):
+        '''        
+        :param df: pandas DataFrame containing historical prices for each security that you will use to hedge,
+            and the prices of your portfolio in a column whose name = portfolio_value_col.
+            If df == None, then this class will use the sector spdr ETFs as the hedging securities
+        :param portfolio_value_col: the name of the column in df which holds the hitorical prices of your portfolio.
+            IF None, then use 'SPY' has your portfolio.
+        :param date_column: None ,if your DataFrame does not have a date column, otherwise the column name of that column
+        :param num_of_test_days: Number or rows in df to use as out of sample data. If None, then use int(len(df) * .1).
+            The size of the training set will equal len(df) - num_of_test_days
+        '''
+        super(MinVarianceHedge,self).__init__(df=df,portfolio_value_col=portfolio_value_col,
+                                          date_column=date_column,num_of_test_days=num_of_test_days)
+
+    def run_model(self):
+        non_port_columns = sorted(list(filter(lambda c: c != self.portfolio_value_col,self.df.columns.values)))
+        all_columns = [self.portfolio_value_col] + non_port_columns
+        df_train = self.df[all_columns].iloc[:-self.num_of_test_days]
+        df_corr = df_train.corr()
+        matrix_corr_inner = df_corr.as_matrix()[1:,1:]
+        matrix_inverse = np.linalg.inv(matrix_corr_inner)
+        non_port_vector = np.array(df_corr.iloc[1:,0])
+        hedges = matrix_inverse @ non_port_vector
+        self.hedge_ratio_dict = {non_port_columns[i]:hedges[i] for i in range(len(non_port_columns))}
+        self.bias = 0
+#         last_day_hedge_price_vector = np.array(df_train[non_port_columns][-1])
+#         hedge_ratio_vector = [self.hedge_ratio_dict[k] for k in non_port_columns]
+#         last_day_simulated_price = last_day_hedge_price_vector @ hedge_ratio_vector
+#         last_day_real_port = df_train[self.portfolio_value_col][-1]
+#         last_day_ratio = last_day_real_port / last_day_simulated_price
+        self.last_day_ratio = self.create_last_day_ratio(self.hedge_ratio_dict)
+
+        
+
+class PytorchHedge(PortfolioHedge):
     '''
     Create hedge rations using a simple pytorch Linear model.
     
@@ -117,13 +251,8 @@ class PytorchHedge():
         :param num_of_test_days: Number or rows in df to use as out of sample data. If None, then use int(len(df) * .1).
             The size of the training set will equal len(df) - num_of_test_days
         '''
-        self.portfolio_value_col = portfolio_value_col
-        self.df = df
-        self.date_column  = date_column
-        ntd = num_of_test_days
-        if ntd is None:
-            ntd = int(len(self.df) * .1)
-        self.num_of_test_days = ntd
+        super(PytorchHedge,self).__init__(df=df,portfolio_value_col=portfolio_value_col,
+                                          date_column=date_column,num_of_test_days=num_of_test_days)
         
 
     
@@ -136,7 +265,7 @@ class PytorchHedge():
         Xnp = self.df[x_cols].as_matrix()[:-self.num_of_test_days]
         b=1
         # number of epochs
-        epochs=10000
+        epochs=20000
         # instantiate model
         m1 = SingleLayerNet(Xnp.shape[1],1)
         # Create input torch Variables for X and Y
@@ -163,12 +292,13 @@ class PytorchHedge():
             
             # calculate a loss
             loss = loss_fn(output_batch, yb)  # calculate loss
-        
             # compute gradients
             loss.backward()        # compute gradients of all variables wrt loss
             optimizer.step()       # perform updates using calculated gradients
             # print out progress
             if i % 500 == 0 :
+                if loss.data < .5:
+                    break
                 print('epoch {}, loss {}'.format(i,loss.data))
         
         # print model results
@@ -176,61 +306,40 @@ class PytorchHedge():
         model_bias = m1.linear1.bias.data.numpy()
         self.hedge_ratio_dict = {x_cols[i]:model_A[0][i] for i in range(len(x_cols))}
         self.bias = model_bias[0]
+        self.last_day_ratio = self.create_last_day_ratio(self.hedge_ratio_dict)
 
-    def plot_hedge_ratios_vs_real(self):
-        df = self.df.copy()
-        ntd = self.num_of_test_days
-        yreal = df[self.portfolio_value_col].as_matrix().reshape(-1)
-        df = df.drop(self.portfolio_value_col,axis=1)
-        if self.date_column is not None:
-            df = df.drop(self.date_column)
-        all_Xnp = df.as_matrix().reshape(-1,len(df.columns.values))
-        hedge_ratios = np.array([self.hedge_ratio_dict[symbol] for symbol in df.columns.values])
-        ysim = np.array(all_Xnp @ hedge_ratios + self.bias)
-        # plot with without pandas
-        x_train = list(range(len(all_Xnp)))[:-ntd]
-        x_test =  list(range(len(all_Xnp)))[-ntd-1:]
-        ysim_train = ysim[:-ntd]
-        ysim_test = ysim[-ntd-1:]
-        yreal_train = yreal[:-ntd]
-        yreal_test = yreal[-ntd-1:]
-        fig, ax = plt.subplots(figsize = (16,7))
-    
-        ax.plot(x_train,yreal_train,color='blue',label='y_train_real')
-        ax.plot(x_train,ysim_train,color='orange',label='y_train_model')
-        ax.plot(x_test,yreal_test,color='red',label='y_test_real')
-        ax.plot(x_test,ysim_test,color='green',label='y_test_model')
-        ax.legend()
-        ax.grid()
-        hr = {k:round(self.hedge_ratio_dict[k],4) for k in self.hedge_ratio_dict.keys()}
-        t = f'{self.portfolio_value_col} vs {hr}'
-        t = t.replace("'","")
-        title = ax.set_title("\n".join(wrap(t, 60)))
-        fig.tight_layout()
-        title.set_y(1.05)
-        fig.subplots_adjust(top=0.8)
-        plt.show()
 
 if __name__ == '__main__':
-#     parser = ap.ArgumentParser()
-#     parser.add_argument('--portfolio_symbols',type=str,
-#                         help='Comma separated list of symbols in portfolio to hedge, whose history you must fetch (Default is SPY',
-#                         nargs="?")
-#     parser.add_argument('--hedge_symbols',type=str,
-#                         help='Comma separated list of symbols in hedge list, whose history you must fetch (Default is SPY',
-#                         nargs="?")
-#     args = parser.parse_args()
-#     port_sym_list = args.porfolio_symbols
+    parser = ap.ArgumentParser()
+    parser.add_argument('--use_min_variance',type=bool,
+                        help='Use minimum variance calculation, as opposed to Pytorch regression. (Default = False)',
+                        default=False)
+    parser.add_argument('--use_spy',type=bool,
+                        help='Use SPY as your portfolio, otherwise use 20 randomly created members of SP 500, with random weights. (Default = False)',
+                        default=False)
+    parser.add_argument('--refetch_data',type=bool,
+                        help='Re-fetch all data. (Default = False)',
+                        default=False)
+    args = parser.parse_args()
 
-    use_spy = False
+    use_min_variance = args.use_min_variance
+    use_spy = args.use_spy
+    refetch_data = args.refetch_data
+    
     if use_spy:
         portfolio_column_name = 'SPY'
-        df = fetch_sector_spdr_df()
+        df = fetch_sector_spdr_df(refresh=refetch_data)
     else:
         portfolio_column_name = 'port'
-        df = pd.read_csv(RANDOM_PORTFOLIO_PATH)
-#         df = create_random_portfolio_history()
-    ph = PytorchHedge(df,portfolio_column_name)
+        if refetch_data:
+            df = create_random_portfolio_history()
+        else:
+            df = pd.read_csv(RANDOM_PORTFOLIO_PATH)
+
+    if use_min_variance:
+        ph = MinVarianceHedge(df,portfolio_column_name)
+    else:
+        ph = PytorchHedge(df,portfolio_column_name)
     ph.run_model()
     ph.plot_hedge_ratios_vs_real()
     print(ph.hedge_ratio_dict)
