@@ -14,8 +14,10 @@ class ProgressComponent():
         long_running_process,
         display_div_id,
         div_to_show=None,
-        div_to_hide = None
+        div_to_hide = None,
+        by_pass = False
     ):
+        self.by_pass = by_pass
         self.theapp = theapp
         self.long_running_process = long_running_process
         self.display_div_id = display_div_id
@@ -29,37 +31,43 @@ class ProgressComponent():
         self.callbacks = self.define_callbacks()
         
     def define_callbacks(self):
-        self.theapp.layout
-        # input from user
-        @self.theapp.callback(
-            Output('show','data'),
-            [Input(ProgressComponent.INPUT_ID,'data')],
-            [State('show','data')]
-        )
-        def input_callback(input_data,show_data):
-            show_count = 1 if show_data is None else int(str(show_data['data'])) + 1
-            return {'data':str(show_count)}
+        if not self.by_pass:
+            self.theapp.layout
+            # input from user
+            @self.theapp.callback(
+                Output('show','data'),
+                [Input(ProgressComponent.INPUT_ID,'data')],
+                [State('show','data')]
+            )
+            def input_callback(input_data,show_data):
+                print('entering input_callback')
+                if self.by_pass:
+                    return {'data':'1'}
+                show_count = 1 if show_data is None else int(str(show_data['data'])) + 1
+                return {'data':str(show_count)}
         
-        # this callback displays the show div or the hide div
-        @self.theapp.callback(
-            Output(self.display_div_id,'children'),
-            [Input('show','data'),Input('hide','data')],
-            [State(self.display_div_id,'children')]
-        )
-        def display_callback(show,hide,children):
-            print('entering display_callback')
-            show_count = int(show['data'])
-            hide_count = int(hide['data'])
-            r =  self.div_to_hide
-            if show_count != hide_count:
-                r =  self.div_to_show
-            print(f'exiting with r = {r}')
-            return r
+            # this callback displays the show div or the hide div
+            @self.theapp.callback(
+                Output(self.display_div_id,'children'),
+                [Input('show','data'),Input('hide','data')],
+                [State(self.display_div_id,'children')]
+            )
+            def display_callback(show,hide,children):
+                print('entering display_callback')
+                if self.by_pass:
+                    return self.div_to_hide
+                show_count = int(show['data'])
+                hide_count = int(hide['data'])
+                r =  self.div_to_hide
+                if show_count != hide_count:
+                    r =  self.div_to_show
+                print(f'exiting with r = {r}')
+                return r
         
         # callback to fire long process
         @self.theapp.callback(
             # outputs
-            [Output(ProgressComponent.OUTPUT_ID,'data'),Output('hide','data')],
+            [Output(ProgressComponent.OUTPUT_ID,'data'),Output('hide','data')] if not self.by_pass else Output(ProgressComponent.OUTPUT_ID,'data'),
             # input
             [Input(ProgressComponent.INPUT_ID,'data')],
             [State('hide','data')]
@@ -69,12 +77,17 @@ class ProgressComponent():
             result = None
             try:
                 result = self.long_running_process(input_data)
-                print(result)
+#                 print(result)
             except Exception as e:
                 print('output_callback',str(e))
             hide_count = 1 if hide_data is None else int(str(hide_data['data'])) + 1
+            print('leaving output_callback')
+            if self.by_pass:
+                return result
             return result,{'data':str(hide_count)}
-    
+        
+        if self.by_pass:
+            return [output_callback]
         return [input_callback,display_callback,output_callback]
 
 
@@ -129,7 +142,7 @@ if __name__ == '__main__':
         [State(input_div_id,'value')]
     )
     def from_input_box(n_submit,value):
-        sleep_time = 7
+        sleep_time = 20 #7
         if value is None:
             sleep_time = .1
         data = {

@@ -25,8 +25,12 @@ import datetime
 import matplotlib.pyplot as plt
 from textwrap import wrap
 import argparse as ap
+from itertools import combinations
+
+
 
 RANDOM_PORTFOLIO_PATH = './temp_folder/df_random_portfolio.csv'
+RANDOM_PORTFOLIO_WEGHTS = './temp_folder/random_portfolio_weights.csv'
 SPDR_HISTORY_PATH = './temp_folder/df_hist_portfolio_hedge.csv'
 
 def fetch_histories(symbol_list,dt_beg=None,dt_end=None):
@@ -54,6 +58,8 @@ def create_random_portfolio_history(num_of_symbols=20,weights=None,dt_beg=None,d
     df_spdr = df_spdr.drop('SPY',axis=1)
     df_spdr['port'] = df.port
     df_spdr.to_csv(port_path,index=None)
+    df_random_port_weights = pd.DataFrame({'symbol':symbol_list,'position':w})
+    df_random_port_weights.to_csv(RANDOM_PORTFOLIO_WEGHTS,index=False)
     return df_spdr
 
 def create_portfolio_history(symbol_list,weights,dt_beg=None,dt_end=None):
@@ -308,6 +314,43 @@ class PytorchHedge(PortfolioHedge):
         self.bias = model_bias[0]
         self.last_day_ratio = self.create_last_day_ratio(self.hedge_ratio_dict)
 
+def best_hedge(df,portfolio_column_name='port',max_hedge_symbols=4,rounding_value_for_hedge_comarisons=.001):
+    hedge_cols = df.columns.values
+    hedge_cols = np.setdiff1d(hedge_cols, np.array([portfolio_column_name]))
+
+    
+    sets = []
+    for i in range(1,max_hedge_symbols+1):
+        for l in combinations(hedge_cols,i): 
+            sets.append(l)
+    l
+    lowest_diff = sys.float_info.max
+    best_set = None
+    best_ph = None
+    for s in sets:
+        dfs = df[[portfolio_column_name] + list(s)]
+        ph = MinVarianceHedge(dfs,portfolio_column_name)
+        ph.run_model()
+        d = ph.get_train_test_values()
+        first_ysim_test = d['ysim_test'][1]
+        first_yreal_test = d['yreal_test'][1]
+        abs_diff = abs(first_yreal_test-first_ysim_test)
+        # round it
+        update = False
+        if best_ph is None:
+            update=True
+        elif abs_diff < lowest_diff:
+            if abs(abs_diff/lowest_diff - 1) < rounding_value_for_hedge_comarisons:
+                if len(s) < len(best_set):
+                    update=True
+            else:
+                update=True
+        if update:
+            lowest_diff = abs_diff
+            best_set = s
+            best_ph = ph
+                    
+    return best_ph
 
 if __name__ == '__main__':
     parser = ap.ArgumentParser()
