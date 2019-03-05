@@ -11,16 +11,20 @@ import pandas as pd
 import dash_table
 import plotly.graph_objs as go
 import numpy as np
+import argparse as ap
 import datetime,base64,io,pytz
 
 DEFAULT_TIMEZONE = 'US/Eastern'
 
 #**************************************************************************************************
 
+
 grid_style = {'display': 'grid',
   'grid-template-columns': '49.9% 49.9%',
   'grid-gap': '10px'
 }
+
+
 chart_style = {'margin-right':'auto' ,'margin-left':'auto' ,'height': '98%','width':'98%'}
 
 #**************************************************************************************************
@@ -53,6 +57,19 @@ buttons_grid_style = {'display': 'grid',
 
 #**************************************************************************************************
 
+def format_df(df_in,non_value_cols):
+    df = df_in.copy()
+    value_columns = [c for c in df.columns.values if c not in non_value_cols]
+    for c in value_columns:
+        try:
+            df[c] = df[c].round(3)
+        except:
+            pass
+    all_cols = non_value_cols + value_columns 
+    df = df[all_cols]
+    return df
+
+#**************************************************************************************************
 
 def parse_contents(contents):
     '''
@@ -86,15 +103,27 @@ def parse_contents(contents):
     return df
 
 #**************************************************************************************************
+class GridItem():
+    def __init__(self,child,html_id=None):
+        self.child = child
+        self.html_id = html_id
+    @property
+    def html(self):
+        if self.html_id is not None:
+            return html.Div(children=self.child,className='grid-item',id=self.html_id)
+        else:
+            return html.Div(children=self.child,className='grid-item')
+#**************************************************************************************************
 
 class GridTable():
     def __init__(self,html_id,title,
-                 input_content_tuple):
+                 input_content_tuple=None,
+                 df_in=None):
 #         self.theapp = theapp
         self.html_id = html_id
         self.title = title
         self.input_content_tuple = input_content_tuple
-        self.dt_html = self.create_dt_html()
+        self.dt_html = self.create_dt_html(df_in=df_in)
         
     def create_dt_div(self,df_in=None):
         dt = dash_table.DataTable(
@@ -133,8 +162,8 @@ class GridTable():
                 dt
             ]
     
-    def create_dt_html(self):         
-        dt_html = html.Div(self.create_dt_div(),
+    def create_dt_html(self,df_in=None):         
+        dt_html = html.Div(self.create_dt_div(df_in=df_in),
             id=self.html_id,
             style={'margin-right':'auto' ,'margin-left':'auto' ,'height': '98%','width':'98%'}
         )
@@ -183,28 +212,45 @@ def charts(x_vals,y_vals,chart_title,x_title,y_title):
 
 class GridGraph():
     def __init__(self,html_id,title,
-                 input_content_tuple,
+                 input_content_tuple=None,
                  df_x_column=None,
                  df_y_column=None,
                  x_title=None,
                  y_title=None,
-                 figure=None):
+                 figure=None,
+                 df_in=None):
+        self.html_id = html_id
         self.input_content_tuple = input_content_tuple
         self.df_x_column = df_x_column
         self.df_y_column = df_y_column
+        self.title = title
         self.x_title = 'x_title' if x_title is None else x_title
         self.y_title = 'y_title' if y_title is None else y_title
-        
-        f = charts([],[],title,x_title,y_title) if figure is None else figure
+        x_vals = []
+        y_vals = []
+        if df_in is not None:
+            x_vals,y_vals = self.get_x_y_values(df_in)
+        f = charts(x_vals,y_vals,title,x_title,y_title) if figure is None else figure
         gr = dcc.Graph(
                 id=html_id,
-                figure=f,
+                figure=f,               
                 )
         self.gr_html = html.Div(gr,className='item1')         
     @property
     def html(self):
         return self.gr_html        
 
+    def get_x_y_values(self,df):
+        if self.df_x_column is None:
+            x_vals = list(df.index)
+        else:
+            x_vals=df[self.df_x_column].as_matrix().reshape(-1)    
+        if self.df_y_column is None:
+            y_vals = df.iloc[:,0].as_matrix().reshape(-1)
+        else:
+            y_vals=df[self.df_y_column].as_matrix().reshape(-1)
+        return (x_vals,y_vals)
+        
     def callback(self,theapp):
         @theapp.callback(
             Output(self.html_id,'figure'), 
@@ -214,79 +260,108 @@ class GridGraph():
             x_vals = []
             y_vals = []
             if dict_df is not None:
-                df = pd.DataFrame(dict_df)                 
-                if self.df_x_column is None:
-                    x_vals = df.index
-                else:
-                    x_vals=df[self.df_x_column].as_matrix().reshape(-1)    
-                if self.df_y_column is None:
-                    y_vals = df[:0].as_matrix().reshape(-1)
-                else:
-                    y_vals=df[self.df_y_column].as_matrix().reshape(-1)
+                df = pd.DataFrame(dict_df)
+                x_vals,y_vals = self.get_x_y_values(df)                 
             fig = go.Figure(data = [go.Bar(
                         x=x_vals,
                         y=y_vals
                 )],
-                layout= go.Layout(plot_bgcolor='#f5f5f0')
+                layout= go.Layout(title = self.title,plot_bgcolor='#f5f5f0'),
             )
-               
             return fig
         
 
-def create_grid(component_array):
-    g =  html.Div([c.html for c in component_array], className='item1',style=grid_style)
+def create_grid(component_array,num_columns=2):
+    gs = grid_style.copy()
+#     if num_columns>2:
+#         gs = grid_style_3
+    percents = [str(round(100/num_columns-.006,1))+'%' for _ in range(num_columns)]
+    perc_string = " ".join(percents)
+    gs['grid-template-columns'] = perc_string
+    g =  html.Div([GridItem(c).html if type(c)==str else c.html for c in component_array], className='item1',style=gs)
     return g
 
+class ReactiveDiv():
+    def __init__(self,html_id,input_tuple):
+        self.html_id = html_id
+        self.input_tuple = input_tuple
+        self.div = html.Div([],id=self.html_id)
+    @property
+    def html(self):
+        return self.div        
+    
+    def callback(self,theapp):
+        @theapp.callback(
+            Output(self.html_id,'children'),
+            [Input(self.input_tuple[0],self.input_tuple[1])]
+        )
+        def update_div(input):
+            return input        
+        return update_div
 
 class CsvUploadButton():
-    def __init__(self,output_list,button_id=None,display_text=None,style=None):
-#         self.theapp = app
-        self.output_list = output_list
+#     def __init__(self,output_list,button_id=None,display_text=None,style=None):
+    def __init__(self,button_id,display_text=None,style=None):
+#         self.output_list = output_list
         st = select_file_style if style is None else style
         self.button_id = button_id
+        self.html_id = button_id
+        self.output_tuple = (f'{self.button_id}_df','data')
         disp_txt = 'CLICK to select a portfolio csv' if display_text is None else display_text
-        dc = html.Div([dcc.Upload(
+        dc = dcc.Upload(
                 id=self.button_id,
                 children=html.Div([disp_txt]),
                 # Allow multiple files to be uploaded
                 multiple=False,
-            ),
-            dcc.Store(id=f'{button_id}_var_dict')
-            ])
-        self.span = create_span(dc, button_id + '_select_div',st)
+            )
+        self.dc = dc
+        self.store = dcc.Store(id=f'{self.button_id}_df')
+    @property
+    def html(self):
+        return html.Div([self.dc,self.store])       
     
     def callback(self,theapp):
         @theapp.callback(
-            self.output_list, 
+            Output(f'{self.button_id}_df','data'), 
             [
-                Input(self.button_id, 'filename'),
-            ],
-            [
-                State(self.button_id,'contents')
+                Input(self.button_id, 'contents'),
             ]
         )
-        def  update_filename(filename,contents):
+        def  update_filename(contents):
+            if contents is None:
+                return None
             dict_df = parse_contents(contents).to_dict('rows')
-            return dict_df,dict_df,filename
+            return dict_df
         return update_filename
 
-def create_span(html_content,html_id,style):
-        s = html.Span(
-                html.Div(html_content,id=html_id),
-               style=style
-            )
-        return s
-    
-    
+def create_span(html_content,html_id=None,style=None):
+    if html_id is not None:
+        htmldiv = html.Div(html_content,id=html_id)
+    else:
+        htmldiv = html.Div(html_content)
+    s = html.Span(
+            htmldiv,
+           style=select_file_style if style is None else style
+        )
+    return s
+
+class CsvUploadSpan():
+    def __init__(self,html_id):    
+        csv_ub = CsvUploadButton(html_id)
+        csv_name = ReactiveDiv(f'{html_id}_csv_name',(csv_ub.html_id,'filename'))
+        self.upload_components = [csv_ub,csv_name]
+        self.up_div  = html.Div([create_span(c.html) for c in self.upload_components],style=buttons_grid_style)
+        self.output_tuple = csv_ub.output_tuple
+    @property
+    def html(self):
+        return self.up_div
 #**************************************************************************************************
 
 
 
-
-
-if __name__ == '__main__':    
+def toy_example(host,port):
     # create the Dash app
-    gts_input = ('upload-data','contents')
+    gts_input = ('upload-data_df','data')
     # create 2 data tables
     gts = [GridTable(f't{i}',f'table {i}',gts_input) for i in range(2)]
     
@@ -300,18 +375,38 @@ if __name__ == '__main__':
     title_div = html.H2('dash_grid example')
 
     # create a span with a file upload button and a div  for the filename 
-    upload_button_outputs = [Output(gts_input[0],gts_input[1]),Output('portfolio_name','children')]
-    ub = CsvUploadButton(upload_button_outputs, 'upload-data')
-    file_name_span =  create_span([],'portfolio_name',select_file_style)
-    file_upload_div = html.Div([ub.span,file_name_span],style=buttons_grid_style)
+    csv_ub = CsvUploadButton('upload-data')
+    csv_name = ReactiveDiv('csv_name',('upload-data','filename'))
+    
+    ub_span = create_span(csv_ub.html,'ub')                       
+    fn_span =  create_span(csv_name.html,'fn')
+    
+    file_upload_div = html.Div([ub_span,fn_span],style=buttons_grid_style)
     
     # create the app layout         
     app = dash.Dash()
     app.layout = html.Div([title_div,file_upload_div,main_grid])
 
     # create the call backs
+    csv_ub.callback(app)
+    csv_name.callback(app)
     [gt.callback(app) for gt in gts]
-    ub.callback(app)
+    [gr.callback(app) for gr in grs]
     
-
-    app.run_server(port=8400)
+    # run server
+    
+    app.run_server(host=host,port=port)
+    
+    
+if __name__ == '__main__':
+    parser = ap.ArgumentParser()
+    parser.add_argument('--host',type=str,
+                        help='host url to run server.  Default=127.0.0.1',
+                        default='127.0.0.1')   
+    parser.add_argument('--port',type=str,
+                        help='port to run server.  Default=8400',
+                        default='8400')   
+    args = parser.parse_args()
+    host = args.host
+    port = args.port
+    toy_example(host,port)

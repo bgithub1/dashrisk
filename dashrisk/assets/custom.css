@@ -15,7 +15,19 @@ h1 {
     background-color: #2a3f5f;
     color: white;
     text-align: center;
+    line-height: 1;
 }
+
+.h1_alt {
+    color: #ffc;
+    background-color: #779;
+    font-size: 2em;
+    text-align:center;
+    line-height: 1;
+    padding: 5px;
+    margin: 0;
+}
+
 
 h2,h3, h4,h5,h6 {
 /*     background-color: #fafaf7; */
@@ -44,6 +56,56 @@ h2,h3, h4,h5,h6 {
   margin-left: auto; 
   margin-right: auto; 
   width: 100px; /* Need a specific value to work */
+}
+
+
+.grid-container-outer {
+  display: grid;
+  grid-column-gap: 2px;
+  grid-template-columns: auto;
+  background-color: #2196F3;
+  padding: 2px;
+  overflow-x:auto;
+}
+.grid-container-inner_1 {
+  display: grid;
+  grid-column-gap: 2px;
+  grid-template-columns: 100;
+  background-color: #2196F3;
+  padding: 1px;
+  justify-items: center;
+}
+
+.grid-container-inner_2 {
+  display: grid;
+  grid-column-gap: 2px;
+  grid-template-columns: 50% 50%;
+  background-color: #219693;
+  padding: 1px;
+  justify-items: center;
+}
+
+.grid-container-inner_3 {
+  display: grid;
+  grid-column-gap: 2px;
+  grid-template-columns: 33.33%  33.33%  33.33%;
+  background-color: #2196F3;
+  padding: 1px;
+}
+
+.grid-container-inner_4 {
+  display: grid;
+  grid-column-gap: 2px;
+  grid-template-columns: 25% 25% 25% 25%;
+  background-color: #2196F3;
+  padding: 1px;
+}
+
+.grid-item {
+  background-color: rgba(255, 255, 255, 0.8);
+  border: 1px solid #2196F3;
+  font-size: 20px;
+  text-align: center;
 }
 
 .modal {
