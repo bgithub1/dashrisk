@@ -194,6 +194,10 @@ class VarModel():
         return df_std
     
     def get_history_matrix(self,price_column_to_use=None):
+        '''
+        Create a DataFrame with a date column, and columns for the price of each underlying in the porfofolio
+        :param price_column_to_use:
+        '''
         pctu = price_column_to_use if price_column_to_use is not None else self.price_column
         df_price = None
         for symbol in self.history_dict.keys():
@@ -210,6 +214,7 @@ class VarModel():
         df_close = self.get_history_matrix()
         df_close = df_close.drop(columns=[self.date_column]) 
         df_corr = df_close.corr() 
+        df_corr = df_corr.sort_index()
         return df_corr  
     
     def get_current_prices(self):
@@ -253,13 +258,17 @@ class VarModel():
         # create an spy standard deviation that is the historical average
         cols_no_symbol = [c for c in df_positions_3.columns.values if c != 'symbol']
         df_underlying_positions = df_positions_3[cols_no_symbol].groupby('underlying',as_index=False).sum()
-        port_variance = df_underlying_positions.position_var.astype(float).as_matrix().T @ df_corr.astype(float).as_matrix() @ df_underlying_positions.position_var.astype(float).as_matrix()
+        df_underlying_positions = df_underlying_positions.sort_values('underlying')
+        dfc = df_corr.copy()
+        dfc = dfc.sort_index()
+        dfc = dfc[sorted(dfc.columns.values)]       
+        port_variance = df_underlying_positions.position_var.astype(float).as_matrix().T @ dfc.astype(float).as_matrix() @ df_underlying_positions.position_var.astype(float).as_matrix()
         
         port_var = port_variance**.5 
         # get sp500 equivilants
         spy_usual_var = self.reference_current_price * spy_usual_std *  norm.ppf(var_confidence) * (var_days/256)**.5 
         sp_dollar_equiv = port_var / spy_usual_var * self.reference_current_price
-        return {'df_underlying_positions':df_underlying_positions,'df_positions_all':df_positions_3,'port_var':port_var,'sp_dollar_equiv':sp_dollar_equiv,'df_atm_price':df_prices,'df_std':df_std}
+        return {'df_underlying_positions':df_underlying_positions,'df_positions_all':df_positions_3,'port_var':port_var,'sp_dollar_equiv':sp_dollar_equiv,'df_atm_price':df_prices,'df_std':df_std,'df_corr':dfc}
 
         
     
