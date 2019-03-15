@@ -83,6 +83,9 @@ dt_pos = dg.GridTable('dt_pos','Original Position').html
 dt_greeks_full = dg.GridTable('dt_greeks_full','Greeks Full').html
 dt_greeks_by_underlying = dg.GridTable('dt_greeks_by_underlying','Greeks By Underlying').html
 dt_hedge_ratios = dg.GridTable('dt_hedge_ratios','Best Hedge Portfolio using Sector SPDR ETFs').html
+dt_corr = dg.GridTable('dt_corr','Correlations').html
+dt_atm_price = dg.GridTable('dt_atm_price','ATM prices').html
+
 
 # my_graph = dg.GridGraph('my-graph','Var By Underlying',['no_position'],[0],'Underlying','Value at Risk').html
 loader_div = html.Div([],className='loader')
@@ -195,12 +198,9 @@ def update_risk_data(contents_in,USE_POSTGRES=False,
     df_hedge_prices = df_hedge_prices[['port'] + spdr_symbols]
 
     print('entering hedge ratio calc')
-#     port_hedger = ph.MinVarianceHedge(df_hedge_prices, 'port')
-#     port_hedger.run_model()
-#     hedge_values = [port_hedger.hedge_ratio_dict[s] * port_hedger.last_day_ratio for s in spdr_symbols]
-#     df_hedge_ratios = pd.DataFrame({'symbol':spdr_symbols,'hedge':hedge_values})
-    
-    best_ph = ph.best_hedge(df_hedge_prices, 'port')
+    max_hedge_symbols = len(var_dict['df_underlying_positions'])//5
+    max_hedge_symbols = 1 if max_hedge_symbols<=0 else max_hedge_symbols
+    best_ph = ph.best_hedge(df_hedge_prices, 'port',max_hedge_symbols=max_hedge_symbols)
     hedge_symbols = list(best_ph.hedge_ratio_dict.keys())
     hedge_values = [best_ph.hedge_ratio_dict[s] * best_ph.last_day_ratio for s in hedge_symbols]
     df_hedge_ratios = pd.DataFrame({'symbol':hedge_symbols,'hedge':hedge_values})
@@ -210,7 +210,8 @@ def update_risk_data(contents_in,USE_POSTGRES=False,
     print(f'End computing VaR {n}')
     yyyymmddhhmmssmmmmmm = '%04d%02d%02d%02d%02d%02d%06d' %(n.year,n.month,n.day,n.hour,n.minute,n.second,n.microsecond)
     ret =  {'yyyymmddhhmmssmmmmmm':str(yyyymmddhhmmssmmmmmm),'df_std':df_std.to_dict('rows'),'df_risk_all':df_risk_all.to_dict('rows'),
-            'port_var':port_var,'sp_dollar_equiv':sp_dollar_equiv,'df_hedge_ratios':df_hedge_ratios.to_dict('rows')}
+            'port_var':port_var,'sp_dollar_equiv':sp_dollar_equiv,'df_hedge_ratios':df_hedge_ratios.to_dict('rows'),
+            'df_corr':var_dict['df_corr'].to_dict('rows'),'df_atm_price':var_dict['df_atm_price'].to_dict('rows')}
     print('leaving update_memory')
     return ret
 
@@ -293,7 +294,7 @@ if __name__ == '__main__':
             ),       
             html.Div(
                 html.Div([
-                    dt, dt_pos, dt_greeks_full,dt_greeks_by_underlying,dt_hedge_ratios], 
+                    dt, dt_pos, dt_greeks_full,dt_greeks_by_underlying,dt_hedge_ratios,dt_corr,dt_atm_price], 
                     className='item1',style=grid_style
                 ),
                 id='risk_tables'
@@ -446,14 +447,22 @@ if __name__ == '__main__':
         df_risk_by_underlying = df_risk_by_symbol[risk_agg_cols].groupby('underlying',as_index=False).sum()
         df_risk_by_underlying = format_df(df_risk_by_underlying,['underlying'])
         df_hedge_ratios = format_df(pd.DataFrame(data['df_hedge_ratios']),['symbol'])
+        df_corr = format_df(pd.DataFrame(data['df_corr']),[])
+        corr_syms = df_corr.columns.values
+        df_corr['symbol'] = corr_syms
+        l = ['symbol'] + list(corr_syms)
+        df_corr = df_corr[l]
+        df_atm_price = format_df(pd.DataFrame(data['df_atm_price'])[['underlying','close']],[])
             
         # create GridTable's
         new_dt_risk_by_symbol = dg.GridTable('dt_risk_by_symbol','Value at Risk and Greeks by Symbol',df_risk_by_symbol).html
         new_dt_risk_by_underlying = dg.GridTable('dt_risk_by_underlying','Value at Risk and Greeks by Underlying',df_risk_by_underlying).html
         new_dt_hedge_ratios = dg.GridTable('dt_hedge_ratios','Best Hedge Portfolio using Sector SPDR ETFs',df_hedge_ratios).html
+        new_dt_corr = dg.GridTable('dt_corr','Correlations',df_corr).html
+        new_dt_atm_price = dg.GridTable('dt_atm_price','ATM Prices',df_atm_price).html
         # create return Div
         ret = html.Div([
-            new_dt_risk_by_symbol,new_dt_risk_by_underlying,new_dt_hedge_ratios
+            new_dt_risk_by_symbol,new_dt_risk_by_underlying,new_dt_hedge_ratios,new_dt_corr,new_dt_atm_price
             ], 
             className='item1',style=grid_style
         )

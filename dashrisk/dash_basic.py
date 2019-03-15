@@ -43,4 +43,4 @@ if __name__=='__main__':
     ip = args.ip
     port = args.port 
     app.run_server(host=ip,port=port) 
-    app.run_server(port=8400)
+    app.run_server(port=port)
