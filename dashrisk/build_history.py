@@ -34,6 +34,7 @@ import pandas as pd
 import datetime as dt
 import time
 from dashrisk import logger_init as li
+from dashrisk import barchart_api as bcapi
 
 STOCKS_DIR = f'./temp_folder/stocks'
 DEFAULT_DAYS_TO_FETCH = 120
@@ -74,6 +75,7 @@ class HistoryBuilder():
         self.update_table = update_table
         self.beg_date = beg_date
         self.end_date = end_date
+        self.bch = self.get_barchart_api()
         self.logger = logger if dburl is not None else li.init_root_logger('logfile.log', 'INFO')
         self.dburl = dburl if dburl is not None else 'localhost'
         self.username = username if username is not None else ''
@@ -126,9 +128,49 @@ class HistoryBuilder():
             try:
                 df =web.DataReader(sym, 'yahoo', beg_date, end_date)
                 return df
-            except Exception as e:
-                self.logger.warn(str(e))
+            except:
+                try:
+                    df = self.get_barchart_data(sym, beg_date, end_date)
+                    return df
+                except Exception as e:
+                    self.logger.warn(str(e))
         return None
+
+    def get_barchart_api(self):
+        # set this to 'free' or 'paid'
+        endpoint = 'free' # free or paid
+        
+        # set the bar_type and the interval
+        bar_type='daily' # minutes, daily, monthly
+        interval=1 # 1,5,15,30,60
+        
+        # create an instance 
+        api_key = open(f'./temp_folder/{endpoint}_api_key.txt','r').read()
+        endpoint_type=f'{endpoint}_url'
+        bch = bcapi.BcHist(api_key, bar_type=bar_type, interval=interval,endpoint_type = endpoint_type)
+        return bch
+            
+    def get_barchart_data(self,sym,beg_date,end_date):
+        try:
+            beg_yyyymmdd = '%04d%02d%02d' %(beg_date.year,beg_date.month,beg_date.day)
+            end_yyyymmdd = '%04d%02d%02d' %(end_date.year,end_date.month,end_date.day)
+            tup = self.bch.get_history(sym, beg_yyyymmdd, end_yyyymmdd)
+            df = tup[1]
+            df2 = self.convert_barchart_to_yahoo_format(df)
+            return df2
+        except Exception as e:
+            self.logger.warn(str(e))
+        return None
+
+    def convert_barchart_to_yahoo_format(self,df):
+        df2 = df.copy()
+        df2.index = df2.tradingDay.apply(lambda d: pd.Timestamp(d))
+        df2.index.name = 'Date'
+        newcols = {c:c[0].upper()+c[1:] for c in df2.columns.values}
+        df3 = df2.rename(columns=newcols)
+        df3 = df3[['High','Low','Open','Close','Volume']]
+        df3['Adj Close'] = df3.Close
+        return df3
     
     def get_sp_stocks(self):
         url_constituents = 'https://datahub.io/core/s-and-p-500-companies/r/constituents.csv'
@@ -141,14 +183,6 @@ class HistoryBuilder():
     
     
     def build_pg_from_csvs(self,delete_table_before_building=False):
-#         pga2 = self.pga        
-#         if delete_table_before_building:
-#             pga2.exec_sql_raw(f"drop table if exists {self.full_table_name}")
-#         try:
-#             # try creating the schema, just in case
-#             pga2.exec_sql_raw(f"create schema {self.schema_name};")
-#         except:
-#             pass
         try:
             # always try to build the table in case it's the first time
             sql = f"""
@@ -235,24 +269,6 @@ class HistoryBuilder():
                 self.logger.warn(str(e))
                 continue
             
-#         
-#             df_this_stock = self.get_yahoo_data(r.symbol,beg_date,end_date)
-#             if df_this_stock is None or len(df_this_stock)<1:
-#                 self.logger.info(f'{r.symbol} nothing to update')
-#                 continue
-#             df_this_stock['symbol'] = r.symbol
-#             df_this_stock = self.yahoo_to_pg(df_this_stock)
-#             df_this_stock = df_this_stock[~df_this_stock.date.isin(set(df_last_dates.date))]
-#             if len(df_this_stock)>0:
-#                 try:
-#                     pga2.write_df_to_postgres_using_metadata(df=df_this_stock,table_name=self.full_table_name)
-#                 except Exception as e:
-#                     self.logger.warn(str(e))
-#                     self.logger.info(f'{r.symbol} nothing to update')
-#                     continue
-#                 self.logger.info(f'{r.symbol} updated')
-#             else:
-#                 self.logger.info(f'{r.symbol} nothing to update')
 
     def get_pg_data(self,symbol,dt_beg,dt_end):
         sql_dt_beg = dt_beg.strftime('%Y-%m-%d')
@@ -281,21 +297,6 @@ class HistoryBuilder():
         df = df.rename(columns={'Adj close':'Adj Close'})
         return df        
     
-#     def build_from_scratch(self):
-#         hist_dict = self.build_history_dict()
-#         self.write_hist_dict_to_csv(hist_dict)
-#         self.build_pg_from_csvs()
-#       
-#     def build_from_csvs(self):
-#         self.build_pg_from_csvs()
-#     
-#     def add_new_symbols(self):
-#         hist_dict = self.build_history_dict()
-#         self.write_hist_dict_to_csv(hist_dict)
-#         self.build_pg_from_csvs(delete_table_before_building=False)
-#     
-#     def do_action(self,action):
-#         self.action_dict[action]()
         
         
     def delete_pg_table(self):

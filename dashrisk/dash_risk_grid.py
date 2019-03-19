@@ -85,7 +85,7 @@ dt_greeks_by_underlying = dg.GridTable('dt_greeks_by_underlying','Greeks By Unde
 dt_hedge_ratios = dg.GridTable('dt_hedge_ratios','Best Hedge Portfolio using Sector SPDR ETFs').html
 dt_corr = dg.GridTable('dt_corr','Correlations').html
 dt_atm_price = dg.GridTable('dt_atm_price','ATM prices').html
-
+dt_std = dg.GridTable('dt_std','Standard Deviations').html
 
 # my_graph = dg.GridGraph('my-graph','Var By Underlying',['no_position'],[0],'Underlying','Value at Risk').html
 loader_div = html.Div([],className='loader')
@@ -294,7 +294,7 @@ if __name__ == '__main__':
             ),       
             html.Div(
                 html.Div([
-                    dt, dt_pos, dt_greeks_full,dt_greeks_by_underlying,dt_hedge_ratios,dt_corr,dt_atm_price], 
+                    dt, dt_pos, dt_greeks_full,dt_greeks_by_underlying,dt_hedge_ratios,dt_std,dt_corr,dt_atm_price], 
                     className='item1',style=grid_style
                 ),
                 id='risk_tables'
@@ -453,16 +453,19 @@ if __name__ == '__main__':
         l = ['symbol'] + list(corr_syms)
         df_corr = df_corr[l]
         df_atm_price = format_df(pd.DataFrame(data['df_atm_price'])[['underlying','close']],[])
-            
+        df_std = format_df(pd.DataFrame(data['df_std'])[['underlying','stdev']],[])
+        
         # create GridTable's
         new_dt_risk_by_symbol = dg.GridTable('dt_risk_by_symbol','Value at Risk and Greeks by Symbol',df_risk_by_symbol).html
         new_dt_risk_by_underlying = dg.GridTable('dt_risk_by_underlying','Value at Risk and Greeks by Underlying',df_risk_by_underlying).html
         new_dt_hedge_ratios = dg.GridTable('dt_hedge_ratios','Best Hedge Portfolio using Sector SPDR ETFs',df_hedge_ratios).html
         new_dt_corr = dg.GridTable('dt_corr','Correlations',df_corr).html
         new_dt_atm_price = dg.GridTable('dt_atm_price','ATM Prices',df_atm_price).html
+        new_dt_std = dg.GridTable('dt_std','Standard Deviations',df_std).html
+        
         # create return Div
         ret = html.Div([
-            new_dt_risk_by_symbol,new_dt_risk_by_underlying,new_dt_hedge_ratios,new_dt_corr,new_dt_atm_price
+            new_dt_risk_by_symbol,new_dt_risk_by_underlying,new_dt_hedge_ratios,new_dt_std,new_dt_corr,new_dt_atm_price
             ], 
             className='item1',style=grid_style
         )

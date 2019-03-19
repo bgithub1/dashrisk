@@ -25,7 +25,8 @@ class PostgresFetcher():
     def __init__(self,history_builder):
         self.history_builder = history_builder
         self.history_dict = {}
-        self.yahoo_fetcher = YahooFetcher()
+#         self.yahoo_fetcher = YahooFetcher()
+        self.yahoo_fetcher = BarChartFetcher30Min(bar_type='daily',interval=1)
     def fetch_histories(self,symbol_list,dt_beg,dt_end):
         for symbol in symbol_list:
             if symbol in self.history_dict:
