@@ -211,6 +211,33 @@ class VarModel():
                 df_price = df_price.merge(df,how='inner',on=self.date_column)
         return df_price
     
+    def get_high_low_matrix(self):
+        '''
+        Create a DataFrame with a date column, and columns for the price of each underlying in the porfofolio
+        :param price_column_to_use:
+        '''
+        hl_array = []
+        h5_array = []
+        h10_array = []
+        h15_array = []
+        h20_array = []
+        names = list(self.history_dict.keys())
+        for symbol in names:
+            df_this =  self.history_dict[symbol]
+            hl = (df_this.high-df_this.low).sort_values(ascending=False)[:5].mean()/df_this.close[-6:].mean()
+            hl_array.append(hl)
+            h5 = (df_this.high.rolling(5).max() -df_this.low.rolling(5).min()).sort_values(ascending=False)[:5].mean()/df_this.close[-6:].mean()
+            h5_array.append(h5)
+            h10 = (df_this.high.rolling(10).max() -df_this.low.rolling(10).min()).sort_values(ascending=False)[:10].mean()/df_this.close[-6:].mean()
+            h10_array.append(h10)
+            h15 = (df_this.high.rolling(15).max() -df_this.low.rolling(15).min()).sort_values(ascending=False)[:10].mean()/df_this.close[-6:].mean()
+            h15_array.append(h15)
+            h20 = (df_this.high.rolling(20).max() -df_this.low.rolling(20).min()).sort_values(ascending=False)[:10].mean()/df_this.close[-6:].mean()
+            h20_array.append(h20)
+        df_high_low = pd.DataFrame({'symbol':names,'d1':hl_array,'d5':h5_array,'d10':h10_array,'d15':h15_array,'d20':h20_array})
+        return df_high_low
+
+    
     def compute_corr_matrix(self):
         df_close = self.get_history_matrix()
         df_close = df_close.drop(columns=[self.date_column]) 
@@ -269,7 +296,10 @@ class VarModel():
         # get sp500 equivilants
         spy_usual_var = self.reference_current_price * spy_usual_std *  norm.ppf(var_confidence) * (var_days/256)**.5 
         sp_dollar_equiv = port_var / spy_usual_var * self.reference_current_price
-        return {'df_underlying_positions':df_underlying_positions,'df_positions_all':df_positions_3,'port_var':port_var,'sp_dollar_equiv':sp_dollar_equiv,'df_atm_price':df_prices,'df_std':df_std,'df_corr':dfc}
+        
+        df_high_low = self.get_high_low_matrix()
+        
+        return {'df_underlying_positions':df_underlying_positions,'df_positions_all':df_positions_3,'port_var':port_var,'sp_dollar_equiv':sp_dollar_equiv,'df_atm_price':df_prices,'df_std':df_std,'df_corr':dfc,'df_high_low':df_high_low}
 
         
     

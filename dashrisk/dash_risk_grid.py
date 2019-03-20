@@ -86,6 +86,7 @@ dt_hedge_ratios = dg.GridTable('dt_hedge_ratios','Best Hedge Portfolio using Sec
 dt_corr = dg.GridTable('dt_corr','Correlations').html
 dt_atm_price = dg.GridTable('dt_atm_price','ATM prices').html
 dt_std = dg.GridTable('dt_std','Standard Deviations').html
+dt_high_low = dg.GridTable('dt_high_low','High minus Low for various time periods').html
 
 # my_graph = dg.GridGraph('my-graph','Var By Underlying',['no_position'],[0],'Underlying','Value at Risk').html
 loader_div = html.Div([],className='loader')
@@ -166,7 +167,7 @@ def update_risk_data(contents_in,USE_POSTGRES=False,
     df_positions_all = var_dict['df_positions_all']
     df_atm_price = var_dict['df_atm_price']
     df_atm_price = df_atm_price.rename(columns={'close':'price'})
-    df_std = var_dict['df_std']
+    
     model_per_underlying_dict = {u:opmod.BsModel for u in df_atm_price.underlying}
     greeks_dict = opmod.get_df_greeks(df_positions_all, df_atm_price, model_per_underlying_dict)
     df_greeks = greeks_dict['df_greeks']
@@ -209,9 +210,16 @@ def update_risk_data(contents_in,USE_POSTGRES=False,
     n = datetime.datetime.now()
     print(f'End computing VaR {n}')
     yyyymmddhhmmssmmmmmm = '%04d%02d%02d%02d%02d%02d%06d' %(n.year,n.month,n.day,n.hour,n.minute,n.second,n.microsecond)
-    ret =  {'yyyymmddhhmmssmmmmmm':str(yyyymmddhhmmssmmmmmm),'df_std':df_std.to_dict('rows'),'df_risk_all':df_risk_all.to_dict('rows'),
-            'port_var':port_var,'sp_dollar_equiv':sp_dollar_equiv,'df_hedge_ratios':df_hedge_ratios.to_dict('rows'),
-            'df_corr':var_dict['df_corr'].to_dict('rows'),'df_atm_price':var_dict['df_atm_price'].to_dict('rows')}
+    ret =  {
+        'yyyymmddhhmmssmmmmmm':str(yyyymmddhhmmssmmmmmm),
+        'df_std':var_dict['df_std'].to_dict('rows'),
+        'df_high_low':var_dict['df_high_low'].to_dict('rows'),
+        'df_risk_all':df_risk_all.to_dict('rows'),
+        'port_var':port_var,
+        'sp_dollar_equiv':sp_dollar_equiv,
+        'df_hedge_ratios':df_hedge_ratios.to_dict('rows'),
+        'df_corr':var_dict['df_corr'].to_dict('rows'),
+        'df_atm_price':var_dict['df_atm_price'].to_dict('rows')}
     print('leaving update_memory')
     return ret
 
@@ -454,6 +462,7 @@ if __name__ == '__main__':
         df_corr = df_corr[l]
         df_atm_price = format_df(pd.DataFrame(data['df_atm_price'])[['underlying','close']],[])
         df_std = format_df(pd.DataFrame(data['df_std'])[['underlying','stdev']],[])
+        df_high_low = format_df(pd.DataFrame(data['df_high_low'])[['symbol','d1','d5','d10','d15','d20']],[])
         
         # create GridTable's
         new_dt_risk_by_symbol = dg.GridTable('dt_risk_by_symbol','Value at Risk and Greeks by Symbol',df_risk_by_symbol).html
@@ -462,10 +471,11 @@ if __name__ == '__main__':
         new_dt_corr = dg.GridTable('dt_corr','Correlations',df_corr).html
         new_dt_atm_price = dg.GridTable('dt_atm_price','ATM Prices',df_atm_price).html
         new_dt_std = dg.GridTable('dt_std','Standard Deviations',df_std).html
+        new_dt_high_low = dg.GridTable('dt_high_low','High - Low (as a percent of the 5 day average price) for multiple time periods. d1=1 day, ... ,d20=20 days',df_high_low).html
         
         # create return Div
         ret = html.Div([
-            new_dt_risk_by_symbol,new_dt_risk_by_underlying,new_dt_hedge_ratios,new_dt_std,new_dt_corr,new_dt_atm_price
+            new_dt_risk_by_symbol,new_dt_risk_by_underlying,new_dt_hedge_ratios,new_dt_std,new_dt_corr,new_dt_atm_price,new_dt_high_low
             ], 
             className='item1',style=grid_style
         )
