@@ -238,7 +238,7 @@ class VarModel():
         return df_high_low
 
     
-    def compute_corr_matrix(self):
+    def compute_corr_matrix(self,use_returns=False):
         df_close = self.get_history_matrix()
         df_close = df_close.drop(columns=[self.date_column]) 
         df_corr = df_close.corr() 
