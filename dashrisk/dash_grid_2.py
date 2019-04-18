@@ -118,12 +118,16 @@ class GridItem():
 class GridTable():
     def __init__(self,html_id,title,
                  input_content_tuple=None,
-                 df_in=None):
-#         self.theapp = theapp
+                 df_in=None,
+                 editable_columns=None):
         self.html_id = html_id
         self.title = title
-        self.input_content_tuple = input_content_tuple
+        self.input_content_tuple =  input_content_tuple
+#         self.input_content_tuple = [input_content_tuple] if type(input_content_tuple) is tuple else input_content_tuple
+        self.editable_columns = [] if editable_columns is None else editable_columns
         self.dt_html = self.create_dt_html(df_in=df_in)
+        self.df = None
+        self.df_datetime=None
         
     def create_dt_div(self,df_in=None):
         dt = dash_table.DataTable(
@@ -149,14 +153,16 @@ class GridTable():
             
             style_as_list_view=True,
             n_fixed_rows=1,
-            style_table={'maxHeight':'450','overflowX': 'scroll'}    
+            style_table={'maxHeight':'450','overflowX': 'scroll'} ,
+            editable=True,
+            id=self.html_id + '_datatable'
         )
         if df_in is None:
             df = pd.DataFrame({'no_data':[]})
         else:
             df = df_in.copy()
         dt.data=df.to_dict("rows")
-        dt.columns=[{"name": i, "id": i} for i in df.columns]                    
+        dt.columns=[{"name": i, "id": i,'editable': True if i in self.editable_columns else False} for i in df.columns]                    
         return [
                 html.H4(self.title,style={'height':'3px'}),
                 dt
@@ -179,12 +185,15 @@ class GridTable():
             # outputs
             Output(self.html_id,'children'),
             [Input(component_id=self.input_content_tuple[0], component_property=self.input_content_tuple[1])]
+#             [Input(component_id=self.input_content_tuple[i][0], component_property=self.input_content_tuple[i][1]) for i in range(len(self.input_content_tuple))]
         )
         def output_callback(dict_df):
             if dict_df is None:
                 return None
 #             df = parse_contents(dict_df)
             df = pd.DataFrame(dict_df)
+            self.df = df
+            self.df_datetime = datetime.datetime.now()
             dt_div = self.create_dt_div(df)
             return dt_div
             
@@ -218,9 +227,12 @@ class GridGraph():
                  x_title=None,
                  y_title=None,
                  figure=None,
-                 df_in=None):
+                 df_in=None,
+                 gridtable=None):
         self.html_id = html_id
-        self.input_content_tuple = input_content_tuple
+        self.gridtable = gridtable        
+#         self.input_content_tuple = input_content_tuple
+        self.input_content_tuple = [input_content_tuple] if type(input_content_tuple) is tuple else input_content_tuple
         self.df_x_column = df_x_column
         self.df_y_column = df_y_column
         self.title = title
@@ -235,12 +247,14 @@ class GridGraph():
                 id=html_id,
                 figure=f,               
                 )
-        self.gr_html = html.Div(gr,className='item1')         
+        self.gr_html = html.Div(gr,className='item1') 
     @property
     def html(self):
         return self.gr_html        
 
     def get_x_y_values(self,df):
+        if df is None or len(df)<1:
+            return ([],[])
         if self.df_x_column is None:
             x_vals = list(df.index)
         else:
@@ -254,11 +268,14 @@ class GridGraph():
     def callback(self,theapp):
         @theapp.callback(
             Output(self.html_id,'figure'), 
-            [Input(component_id=self.input_content_tuple[0], component_property=self.input_content_tuple[1])],
+#             [Input(component_id=self.input_content_tuple[0], component_property=self.input_content_tuple[1])],
+            [Input(component_id=self.input_content_tuple[i][0], component_property=self.input_content_tuple[i][1]) for i in range(len(self.input_content_tuple))]
         )
-        def update_graph(dict_df):
+        def update_graph(dict_df,*args):
             x_vals = []
             y_vals = []
+#             if self.gridtable is not None and self.gridtable.df is not None:
+#                 x_vals,y_vals = self.get_x_y_values(self.gridtable.df)        
             if dict_df is not None:
                 df = pd.DataFrame(dict_df)
                 x_vals,y_vals = self.get_x_y_values(df)                 
@@ -363,10 +380,11 @@ def toy_example(host,port):
     # create the Dash app
     gts_input = ('upload-data_df','data')
     # create 2 data tables
-    gts = [GridTable(f't{i}',f'table {i}',gts_input) for i in range(2)]
+    editable_cols = ['position']
+    gts = [GridTable(f't{i}',f'table {i}',gts_input,editable_columns=editable_cols) for i in range(2)]
     
     # create 2 graphs
-    grs = [GridGraph(f'g{i}', f'g{i}',gts_input) for i in range(2)]
+    grs = [GridGraph(f'g{i}', f'graph {i}',(f't{i}_datatable','data'),gridtable=gts[i]) for i in range(2)]
     
     # combine tables and graph into main grid
     main_grid =  create_grid(gts + grs)

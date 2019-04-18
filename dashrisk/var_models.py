@@ -172,6 +172,7 @@ class VarModel():
         self.reference_current_price = self.get_reference_index_current_price()
         self.df_std = self.compute_std() 
         self.df_corr = self.compute_corr_matrix()
+        self.df_corr_price = self.compute_corr_matrix(use_returns=False)
         
     def fetch_portfolio_history(self):
         symbols = list(set(self.df_portfolio.underlying.as_matrix().reshape(-1)))
@@ -238,9 +239,13 @@ class VarModel():
         return df_high_low
 
     
-    def compute_corr_matrix(self,use_returns=False):
+    def compute_corr_matrix(self,use_returns=True):
         df_close = self.get_history_matrix()
         df_close = df_close.drop(columns=[self.date_column]) 
+        if use_returns:
+            for c in df_close.columns.values:
+                df_close[c] = df_close[c].pct_change()
+            df_close = df_close.iloc[1:]
         df_corr = df_close.corr() 
         df_corr = df_corr.sort_index()
         return df_corr  
@@ -258,6 +263,7 @@ class VarModel():
         df_prices = self.get_current_prices()
         df_std = self.df_std
         df_corr = self.df_corr
+        df_corr_price = self.df_corr_price
         df_positions_2 = df_portfolio.merge(df_prices,how='inner',on='underlying')
         df_positions_3 = df_positions_2.merge(df_std,how='inner',on='underlying')
         rate = self.rate_model.get_rate(None)
@@ -292,6 +298,11 @@ class VarModel():
         dfc = dfc[sorted(dfc.columns.values)]       
         port_variance = df_underlying_positions.position_var.astype(float).as_matrix().T @ dfc.astype(float).as_matrix() @ df_underlying_positions.position_var.astype(float).as_matrix()
         
+        dfcp = df_corr_price.copy()
+        dfcp = dfcp.sort_index()
+        dfcp = dfcp[sorted(dfcp.columns.values)]       
+        
+        
         port_var = port_variance**.5 
         # get sp500 equivilants
         spy_usual_var = self.reference_current_price * spy_usual_std *  norm.ppf(var_confidence) * (var_days/256)**.5 
@@ -299,7 +310,7 @@ class VarModel():
         
         df_high_low = self.get_high_low_matrix()
         
-        return {'df_underlying_positions':df_underlying_positions,'df_positions_all':df_positions_3,'port_var':port_var,'sp_dollar_equiv':sp_dollar_equiv,'df_atm_price':df_prices,'df_std':df_std,'df_corr':dfc,'df_high_low':df_high_low}
+        return {'df_underlying_positions':df_underlying_positions,'df_positions_all':df_positions_3,'port_var':port_var,'sp_dollar_equiv':sp_dollar_equiv,'df_atm_price':df_prices,'df_std':df_std,'df_corr':dfc,'df_corr_price':dfcp,'df_high_low':df_high_low}
 
         
     

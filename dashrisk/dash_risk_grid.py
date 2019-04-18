@@ -83,7 +83,8 @@ dt_pos = dg.GridTable('dt_pos','Original Position').html
 dt_greeks_full = dg.GridTable('dt_greeks_full','Greeks Full').html
 dt_greeks_by_underlying = dg.GridTable('dt_greeks_by_underlying','Greeks By Underlying').html
 dt_hedge_ratios = dg.GridTable('dt_hedge_ratios','Best Hedge Portfolio using Sector SPDR ETFs').html
-dt_corr = dg.GridTable('dt_corr','Correlations').html
+dt_corr = dg.GridTable('dt_corr','Correlations (Returns)').html
+dt_corr_price = dg.GridTable('dt_corr_price','Correlations (Price)').html
 dt_atm_price = dg.GridTable('dt_atm_price','ATM prices').html
 dt_std = dg.GridTable('dt_std','Standard Deviations').html
 dt_high_low = dg.GridTable('dt_high_low','High minus Low for various time periods').html
@@ -219,6 +220,7 @@ def update_risk_data(contents_in,USE_POSTGRES=False,
         'sp_dollar_equiv':sp_dollar_equiv,
         'df_hedge_ratios':df_hedge_ratios.to_dict('rows'),
         'df_corr':var_dict['df_corr'].to_dict('rows'),
+        'df_corr_price':var_dict['df_corr_price'].to_dict('rows'),
         'df_atm_price':var_dict['df_atm_price'].to_dict('rows')}
     print('leaving update_memory')
     return ret
@@ -302,7 +304,7 @@ if __name__ == '__main__':
             ),       
             html.Div(
                 html.Div([
-                    dt, dt_pos, dt_greeks_full,dt_greeks_by_underlying,dt_hedge_ratios,dt_std,dt_corr,dt_atm_price], 
+                    dt, dt_pos, dt_greeks_full,dt_greeks_by_underlying,dt_hedge_ratios,dt_std,dt_corr,dt_corr_price,dt_atm_price], 
                     className='item1',style=grid_style
                 ),
                 id='risk_tables'
@@ -455,11 +457,17 @@ if __name__ == '__main__':
         df_risk_by_underlying = df_risk_by_symbol[risk_agg_cols].groupby('underlying',as_index=False).sum()
         df_risk_by_underlying = format_df(df_risk_by_underlying,['underlying'])
         df_hedge_ratios = format_df(pd.DataFrame(data['df_hedge_ratios']),['symbol'])
+        
         df_corr = format_df(pd.DataFrame(data['df_corr']),[])
         corr_syms = df_corr.columns.values
         df_corr['symbol'] = corr_syms
         l = ['symbol'] + list(corr_syms)
         df_corr = df_corr[l]
+        
+        df_corr_price = format_df(pd.DataFrame(data['df_corr_price']),[])
+        df_corr_price['symbol'] = corr_syms
+        df_corr_price = df_corr_price[l]
+
         df_atm_price = format_df(pd.DataFrame(data['df_atm_price'])[['underlying','close']],[])
         df_std = format_df(pd.DataFrame(data['df_std'])[['underlying','stdev']],[])
         df_high_low = format_df(pd.DataFrame(data['df_high_low'])[['symbol','d1','d5','d10','d15','d20']],[])
@@ -468,14 +476,15 @@ if __name__ == '__main__':
         new_dt_risk_by_symbol = dg.GridTable('dt_risk_by_symbol','Value at Risk and Greeks by Symbol',df_risk_by_symbol).html
         new_dt_risk_by_underlying = dg.GridTable('dt_risk_by_underlying','Value at Risk and Greeks by Underlying',df_risk_by_underlying).html
         new_dt_hedge_ratios = dg.GridTable('dt_hedge_ratios','Best Hedge Portfolio using Sector SPDR ETFs',df_hedge_ratios).html
-        new_dt_corr = dg.GridTable('dt_corr','Correlations',df_corr).html
+        new_dt_corr = dg.GridTable('dt_corr','Correlations (Returns)',df_corr).html
+        new_dt_corr_price = dg.GridTable('dt_corr_price','Correlations (Price)',df_corr_price).html
         new_dt_atm_price = dg.GridTable('dt_atm_price','ATM Prices',df_atm_price).html
         new_dt_std = dg.GridTable('dt_std','Standard Deviations',df_std).html
         new_dt_high_low = dg.GridTable('dt_high_low','High - Low (as a percent of the 5 day average price) for multiple time periods. d1=1 day, ... ,d20=20 days',df_high_low).html
         
         # create return Div
         ret = html.Div([
-            new_dt_risk_by_symbol,new_dt_risk_by_underlying,new_dt_hedge_ratios,new_dt_std,new_dt_corr,new_dt_atm_price,new_dt_high_low
+            new_dt_risk_by_symbol,new_dt_risk_by_underlying,new_dt_hedge_ratios,new_dt_std,new_dt_corr,new_dt_corr_price,new_dt_atm_price,new_dt_high_low
             ], 
             className='item1',style=grid_style
         )
