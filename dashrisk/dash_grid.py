@@ -36,7 +36,7 @@ class GridTable():
                 } for c in ['symbol', 'underlying']
             ],
             
-            style_as_list_view=True,
+            style_as_list_view=False,
             n_fixed_rows=1,
             style_table={'maxHeight':'450','overflowX': 'scroll'}    
         )
@@ -50,7 +50,8 @@ class GridTable():
                 self.dt
             ],
             id=html_id,
-            style={'margin-right':'auto' ,'margin-left':'auto' ,'height': '98%','width':'98%'}
+#             style={'margin-right':'auto' ,'margin-left':'auto' ,'height': '98%','width':'98%'}
+            style={'margin-right':'auto' ,'margin-left':'auto' ,'height': '98%','width':'98%','border':'thin solid'}
         )
     @property
     def html(self):
@@ -83,7 +84,12 @@ class GridGraph():
                 id=html_id,
                 figure=f,
                 )
-        self.gr_html = html.Div(gr,className='item1')         
+#         self.gr_html = html.Div(gr,className='item1')         
+        self.gr_html = html.Div(
+            gr,
+            className='item1',
+            style={'margin-right':'auto' ,'margin-left':'auto' ,'height': '98%','width':'98%','border':'thin solid'}
+        ) 
     @property
     def html(self):
         return self.gr_html        

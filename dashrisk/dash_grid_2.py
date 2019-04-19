@@ -21,7 +21,8 @@ DEFAULT_TIMEZONE = 'US/Eastern'
 
 grid_style = {'display': 'grid',
   'grid-template-columns': '49.9% 49.9%',
-  'grid-gap': '10px'
+  'grid-gap': '10px',
+  'border': '1px solid #000',
 }
 
 
@@ -119,15 +120,14 @@ class GridTable():
     def __init__(self,html_id,title,
                  input_content_tuple=None,
                  df_in=None,
+                 columns_to_display=None,
                  editable_columns=None):
         self.html_id = html_id
         self.title = title
         self.input_content_tuple =  input_content_tuple
-#         self.input_content_tuple = [input_content_tuple] if type(input_content_tuple) is tuple else input_content_tuple
+        self.columns_to_display = columns_to_display
         self.editable_columns = [] if editable_columns is None else editable_columns
         self.dt_html = self.create_dt_html(df_in=df_in)
-        self.df = None
-        self.df_datetime=None
         
     def create_dt_div(self,df_in=None):
         dt = dash_table.DataTable(
@@ -151,7 +151,7 @@ class GridTable():
                 } for c in ['symbol', 'underlying']
             ],
             
-            style_as_list_view=True,
+            style_as_list_view=False,
             n_fixed_rows=1,
             style_table={'maxHeight':'450','overflowX': 'scroll'} ,
             editable=True,
@@ -161,6 +161,8 @@ class GridTable():
             df = pd.DataFrame({'no_data':[]})
         else:
             df = df_in.copy()
+            if self.columns_to_display is not None:
+                df = df[self.columns_to_display]
         dt.data=df.to_dict("rows")
         dt.columns=[{"name": i, "id": i,'editable': True if i in self.editable_columns else False} for i in df.columns]                    
         return [
@@ -171,7 +173,7 @@ class GridTable():
     def create_dt_html(self,df_in=None):         
         dt_html = html.Div(self.create_dt_div(df_in=df_in),
             id=self.html_id,
-            style={'margin-right':'auto' ,'margin-left':'auto' ,'height': '98%','width':'98%'}
+            style={'margin-right':'auto' ,'margin-left':'auto' ,'height': '98%','width':'98%','border':'thin solid'}
         )
         return dt_html
         
@@ -185,15 +187,13 @@ class GridTable():
             # outputs
             Output(self.html_id,'children'),
             [Input(component_id=self.input_content_tuple[0], component_property=self.input_content_tuple[1])]
-#             [Input(component_id=self.input_content_tuple[i][0], component_property=self.input_content_tuple[i][1]) for i in range(len(self.input_content_tuple))]
         )
         def output_callback(dict_df):
             if dict_df is None:
                 return None
-#             df = parse_contents(dict_df)
             df = pd.DataFrame(dict_df)
-            self.df = df
-            self.df_datetime = datetime.datetime.now()
+#             self.df = df
+#             self.df_datetime = datetime.datetime.now()
             dt_div = self.create_dt_div(df)
             return dt_div
             
@@ -227,12 +227,9 @@ class GridGraph():
                  x_title=None,
                  y_title=None,
                  figure=None,
-                 df_in=None,
-                 gridtable=None):
+                 df_in=None):
         self.html_id = html_id
-        self.gridtable = gridtable        
-#         self.input_content_tuple = input_content_tuple
-        self.input_content_tuple = [input_content_tuple] if type(input_content_tuple) is tuple else input_content_tuple
+        self.input_content_tuple = input_content_tuple
         self.df_x_column = df_x_column
         self.df_y_column = df_y_column
         self.title = title
@@ -247,7 +244,11 @@ class GridGraph():
                 id=html_id,
                 figure=f,               
                 )
-        self.gr_html = html.Div(gr,className='item1') 
+        self.gr_html = html.Div(
+            gr,
+            className='item1',
+            style={'margin-right':'auto' ,'margin-left':'auto' ,'height': '98%','width':'98%','border':'thin solid'}
+        ) 
     @property
     def html(self):
         return self.gr_html        
@@ -268,14 +269,11 @@ class GridGraph():
     def callback(self,theapp):
         @theapp.callback(
             Output(self.html_id,'figure'), 
-#             [Input(component_id=self.input_content_tuple[0], component_property=self.input_content_tuple[1])],
-            [Input(component_id=self.input_content_tuple[i][0], component_property=self.input_content_tuple[i][1]) for i in range(len(self.input_content_tuple))]
+            [Input(component_id=self.input_content_tuple[0], component_property=self.input_content_tuple[1])],
         )
         def update_graph(dict_df,*args):
             x_vals = []
             y_vals = []
-#             if self.gridtable is not None and self.gridtable.df is not None:
-#                 x_vals,y_vals = self.get_x_y_values(self.gridtable.df)        
             if dict_df is not None:
                 df = pd.DataFrame(dict_df)
                 x_vals,y_vals = self.get_x_y_values(df)                 
@@ -295,7 +293,8 @@ def create_grid(component_array,num_columns=2):
     percents = [str(round(100/num_columns-.006,1))+'%' for _ in range(num_columns)]
     perc_string = " ".join(percents)
     gs['grid-template-columns'] = perc_string
-    g =  html.Div([GridItem(c).html if type(c)==str else c.html for c in component_array], className='item1',style=gs)
+#     g =  html.Div([GridItem(c).html if type(c)==str else c.html for c in component_array], className='item1',style=gs)
+    g =  html.Div([GridItem(c).html if type(c)==str else c.html for c in component_array], style=gs)
     return g
 
 class ReactiveDiv():
@@ -317,9 +316,7 @@ class ReactiveDiv():
         return update_div
 
 class CsvUploadButton():
-#     def __init__(self,output_list,button_id=None,display_text=None,style=None):
     def __init__(self,button_id,display_text=None,style=None):
-#         self.output_list = output_list
         st = select_file_style if style is None else style
         self.button_id = button_id
         self.html_id = button_id
@@ -380,14 +377,15 @@ def toy_example(host,port):
     # create the Dash app
     gts_input = ('upload-data_df','data')
     # create 2 data tables
+    columns_to_display=['symbol','position']
     editable_cols = ['position']
-    gts = [GridTable(f't{i}',f'table {i}',gts_input,editable_columns=editable_cols) for i in range(2)]
+    gts = [GridTable(f't{i}',f'table {i}',gts_input,editable_columns=editable_cols,columns_to_display=columns_to_display) for i in range(2)]
     
     # create 2 graphs
-    grs = [GridGraph(f'g{i}', f'graph {i}',(f't{i}_datatable','data'),gridtable=gts[i]) for i in range(2)]
+    grs = [GridGraph(f'g{i}', f'graph {i}',(f't{i}_datatable','data'),df_x_column='symbol') for i in range(2)]
     
     # combine tables and graph into main grid
-    main_grid =  create_grid(gts + grs)
+    main_grid =  create_grid([gts[0],grs[0],gts[1],grs[1]])
 
     # create title for page
     title_div = html.H2('dash_grid example')
@@ -395,10 +393,8 @@ def toy_example(host,port):
     # create a span with a file upload button and a div  for the filename 
     csv_ub = CsvUploadButton('upload-data')
     csv_name = ReactiveDiv('csv_name',('upload-data','filename'))
-    
     ub_span = create_span(csv_ub.html,'ub')                       
     fn_span =  create_span(csv_name.html,'fn')
-    
     file_upload_div = html.Div([ub_span,fn_span],style=buttons_grid_style)
     
     # create the app layout         
