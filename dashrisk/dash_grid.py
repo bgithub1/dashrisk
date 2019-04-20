@@ -15,6 +15,16 @@ import numpy as np
 
 class GridTable():
     def __init__(self,html_id,title,df=None):
+        col_widths = {}
+        if df is not None:
+            total_width = 0
+            for c in df.columns.values:
+                max_value_len = df[c].apply(lambda v: len(str(v))).values.max()
+                len_header = len(c)
+                max_col_len = max([max_value_len,len_header])
+                col_widths[c] = max_col_len
+                total_width += max_col_len
+        col_widths = {c:f'{round(col_widths[c]/total_width*100,3)}%' for c in list(col_widths.keys())}
         self.dt = dash_table.DataTable(
             pagination_settings={
                 'current_page': 0,
@@ -34,6 +44,11 @@ class GridTable():
                     'if': {'column_id': c},
                     'textAlign': 'left'
                 } for c in ['symbol', 'underlying']
+            ] + [
+                {
+                    'if': {'column_id': c},
+                    'width': col_widths[c]
+                } for c in list(col_widths.keys())
             ],
             
             style_as_list_view=False,
