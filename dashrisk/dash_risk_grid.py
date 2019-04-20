@@ -66,6 +66,11 @@ buttons_grid_style = {'display': 'grid',
   'grid-gap': '1px'
 }
 
+buttons_grid_style_full = {'display': 'grid',
+  'grid-template-columns': '50% 50%',
+  'grid-gap': '1px'
+}
+
 grid_style = {'display': 'grid',
   'grid-template-columns': '98.5%',
   'grid-gap': '10px'
@@ -291,7 +296,32 @@ if __name__ == '__main__':
                         style=button_style
                     ),
                 ],
-            style=buttons_grid_style),  
+                 style=buttons_grid_style),  
+            html.Div([
+                   html.Div([
+                           html.Span(
+                                html.Div(['delta'],id='delta_div'),
+                                style=button_style
+                            ),
+                           html.Span(
+                                html.Div(['gamma'],id='gamma_div'),
+                                style=button_style
+                            ),
+                       ],
+                       style=buttons_grid_style_full),
+                   html.Div([
+                           html.Span(
+                                html.Div(['vega'],id='vega_div'),
+                                style=button_style
+                            ),
+                           html.Span(
+                                html.Div(['gamma'],id='theta_div'),
+                                style=button_style
+                            ),
+                       ],
+                       style=buttons_grid_style_full),
+                ],
+                style=buttons_grid_style),
             html.Div(
                 [html.H2("Var Profile")],
                 style={'background-color':'#eefaf7','border':'1px solid #C8D4E3','border-radius': '3px'}
@@ -304,7 +334,8 @@ if __name__ == '__main__':
             ),       
             html.Div(
                 html.Div([
-                    dt, dt_pos, dt_greeks_full,dt_greeks_by_underlying,dt_hedge_ratios,dt_std,dt_corr,dt_corr_price,dt_atm_price], 
+#                     dt, dt_pos, dt_greeks_full,dt_greeks_by_underlying,dt_hedge_ratios,dt_std,dt_corr,dt_corr_price,dt_atm_price], 
+                    dt, dt_pos, dt_greeks_full,dt_greeks_by_underlying,dt_hedge_ratios,dt_corr,dt_corr_price,dt_atm_price], 
                     className='item1',style=grid_style
                 ),
                 id='risk_tables'
@@ -375,10 +406,44 @@ if __name__ == '__main__':
         if data is None:
             port_var = 0.0
         else:
-            port_var = round(float(data['port_var']),3)
+            port_var = '${:,.2f}'.format(round(float(data['port_var']),2))
         print('leaving update_pvar_div')
         return f"Portfolio VaR = {port_var}"
        
+       
+    @app.callback(
+        [
+            Output('delta_div', 'children'), 
+            Output('gamma_div', 'children'), 
+            Output('vega_div', 'children'), 
+            Output('theta_div', 'children'), 
+        ],
+        [
+            Input('pvar_div', 'children'),
+        ],
+        [
+            State(component_id='var_dict', component_property='data'),
+        ]    
+    )
+    def  update_delta_div(children,data):
+        print('entering update_delta_div')
+        if data is None:
+            delta = 0.0
+        else:
+            df_risk = pd.DataFrame(data['df_risk_all'])
+            df_atm = pd.DataFrame(data['df_atm_price'])
+            df_risk = df_risk.merge(df_atm[['underlying','close']],how='inner',on='underlying')
+            
+            df_risk['ddelta'] = df_risk.apply(lambda r:r.delta * r.close,axis=1)
+            '${:,.2f}'.format(1234.5)
+            delta =  '${:,.2f}'.format(round(df_risk.ddelta.sum(),2))
+            df_risk['dgamma'] = df_risk.apply(lambda r:r.gamma * r.close,axis=1)
+            gamma = '${:,.2f}'.format(round(df_risk.dgamma.sum(),2))
+            df_risk['dvega'] = df_risk.apply(lambda r:r.vega * r.close,axis=1)
+            vega = '${:,.2f}'.format(round(df_risk.dvega.sum(),2))
+            df_risk['dtheta'] = df_risk.apply(lambda r:r.theta * r.close,axis=1)
+            theta = '${:,.2f}'.format(round(df_risk.dtheta.sum(),2))
+        return f"delta = {delta}",f"gamma = {gamma}",f"vega = {vega}",f"theta = {theta}"
        
     @app.callback(
         Output('sp_eq_div', 'children'), 
@@ -394,9 +459,8 @@ if __name__ == '__main__':
         if data is None:
             sp_dollar_equiv = 0.0
         else:
-            sp_dollar_equiv = round(float(data['sp_dollar_equiv']),3)
+            sp_dollar_equiv = '${:,.2f}'.format(round(float(data['sp_dollar_equiv']),2))
         return f"S&P500 Equivilant Position = {sp_dollar_equiv}"
-       
        
        
     @app.callback(
@@ -468,13 +532,13 @@ if __name__ == '__main__':
         df_corr_price['symbol'] = corr_syms
         df_corr_price = df_corr_price[l]
 
-        df_atm_price = format_df(pd.DataFrame(data['df_atm_price'])[['underlying','close']],[])
+        df_atm_price = format_df(pd.DataFrame(data['df_atm_price'])[['underlying','close','stdev']],[])
         df_std = format_df(pd.DataFrame(data['df_std'])[['underlying','stdev']],[])
         df_high_low = format_df(pd.DataFrame(data['df_high_low'])[['symbol','d1','d5','d10','d15','d20']],[])
         
         # create GridTable's
-        new_dt_risk_by_symbol = dg.GridTable('dt_risk_by_symbol','Value at Risk and Greeks by Symbol',df_risk_by_symbol).html
-        new_dt_risk_by_underlying = dg.GridTable('dt_risk_by_underlying','Value at Risk and Greeks by Underlying',df_risk_by_underlying).html
+        new_dt_risk_by_symbol = dg.GridTable('dt_risk_by_symbol','Value at Risk (Dollars) and Greeks (Shares) by Symbol',df_risk_by_symbol).html
+        new_dt_risk_by_underlying = dg.GridTable('dt_risk_by_underlying','Value at Risk (Dollars and Greeks (Shares) by Underlying',df_risk_by_underlying).html
         new_dt_hedge_ratios = dg.GridTable('dt_hedge_ratios','Best Hedge Portfolio using Sector SPDR ETFs',df_hedge_ratios).html
         new_dt_corr = dg.GridTable('dt_corr','Correlations (Returns)',df_corr).html
         new_dt_corr_price = dg.GridTable('dt_corr_price','Correlations (Price)',df_corr_price).html
@@ -484,7 +548,8 @@ if __name__ == '__main__':
         
         # create return Div
         ret = html.Div([
-            new_dt_risk_by_symbol,new_dt_risk_by_underlying,new_dt_hedge_ratios,new_dt_std,new_dt_corr,new_dt_corr_price,new_dt_atm_price,new_dt_high_low
+#             new_dt_risk_by_symbol,new_dt_risk_by_underlying,new_dt_hedge_ratios,new_dt_std,new_dt_corr,new_dt_corr_price,new_dt_atm_price,new_dt_high_low
+            new_dt_risk_by_symbol,new_dt_risk_by_underlying,new_dt_hedge_ratios,new_dt_corr,new_dt_corr_price,new_dt_atm_price,new_dt_high_low
             ], 
             className='item1',style=grid_style
         )

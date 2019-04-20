@@ -261,7 +261,9 @@ class VarModel():
     def compute_var(self,var_days = 1,var_confidence=.99,spy_usual_std=.16):
         df_portfolio = self.df_portfolio
         df_prices = self.get_current_prices()
-        df_std = self.df_std
+        df_prices = df_prices.sort_values('underlying')
+       
+        df_std = self.df_std.sort_values('underlying')
         df_corr = self.df_corr
         df_corr_price = self.df_corr_price
         df_positions_2 = df_portfolio.merge(df_prices,how='inner',on='underlying')
@@ -289,6 +291,7 @@ class VarModel():
 #         df_positions_3['unit_var'] = df_positions_3.apply(lambda r: r[self.price_column] * r.stdev * norm.ppf(.99) * (1/256)**.5 / r[self.price_column],axis=1 )
         df_positions_3['unit_var'] = df_positions_3.apply(_unit_var,axis=1 )
         df_positions_3['position_var'] = df_positions_3.apply(lambda r: r.unit_var * r.position * r[self.price_column] ,axis=1 )
+        df_positions_3 = df_positions_3.sort_values('symbol')
         # create an spy standard deviation that is the historical average
         cols_no_symbol = [c for c in df_positions_3.columns.values if c != 'symbol']
         df_underlying_positions = df_positions_3[cols_no_symbol].groupby('underlying',as_index=False).sum()
@@ -309,9 +312,9 @@ class VarModel():
         sp_dollar_equiv = port_var / spy_usual_var * self.reference_current_price
         
         df_high_low = self.get_high_low_matrix()
-        
+        df_prices = df_prices.merge(df_std,how='inner',on='underlying')
         return {'df_underlying_positions':df_underlying_positions,'df_positions_all':df_positions_3,'port_var':port_var,'sp_dollar_equiv':sp_dollar_equiv,'df_atm_price':df_prices,'df_std':df_std,'df_corr':dfc,'df_corr_price':dfcp,'df_high_low':df_high_low}
-
+    
         
     
 if __name__ == '__main__':
