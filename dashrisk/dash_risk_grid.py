@@ -79,7 +79,7 @@ grid_style = {'display': 'grid',
 
 
 #********
-DEFAULT_PORTFOLIO_NAME=  'hi_volume_stocks.csv'             
+DEFAULT_PORTFOLIO_NAME=  'spdr_stocks.csv'             
 # DEFAULT_PORTFOLIO_NAME=  'test_portfolio.csv'             
 DF_NO_POSITION = pd.read_csv(DEFAULT_PORTFOLIO_NAME)
 
