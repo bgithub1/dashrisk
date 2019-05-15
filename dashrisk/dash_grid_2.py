@@ -201,6 +201,8 @@ class GridTable():
 
 #**************************************************************************************************
 
+
+
 def charts(x_vals,y_vals,chart_title,x_title,y_title):
     fig = go.Figure(data = [go.Bar(
                 x=x_vals,

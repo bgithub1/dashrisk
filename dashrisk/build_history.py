@@ -231,6 +231,23 @@ class HistoryBuilder():
         else:
             raise ValueError(f'cannot find Yahoo data for {symbol}')        
     
+    def update_daily_with_delete(self,dt_beg=None,dt_end=None):
+        '''
+        Update existing symbols in database by deleting data between beg and end dates first\
+        :param dt_beg:
+        :param dt_end:
+        '''
+        pga2 = self.pga
+        end_date = dt_end if dt_end is not None else dt.datetime.now()
+        end_date_str = end_date.strftime("%Y-%m-%d")
+        beg_date = dt_beg if dt_beg is not None else end_date - dt.timedelta(self.days_to_fetch)
+        beg_date_str = beg_date.strftime("%Y-%m-%d")
+        sql_delete = f"""
+        delete from {self.full_table_name} where date>='{beg_date_str}' and date<='{end_date_str}';
+        """
+        pga2.exec_sql_raw(sql_delete)
+        self.update_yahoo_daily(dt_beg=dt_beg,dt_end=dt_end)
+    
     def update_yahoo_daily(self,dt_beg=None,dt_end=None):
         '''
         Update existing symbols in database with new days data
@@ -238,6 +255,15 @@ class HistoryBuilder():
         :param dt_end:
         '''
         pga2 = self.pga
+        end_date = dt_end if dt_end is not None else dt.datetime.now()
+        end_date_str = end_date.strftime("%Y-%m-%d")
+        beg_date = dt_beg if dt_beg is not None else end_date - dt.timedelta(self.days_to_fetch)
+        beg_date_str = beg_date.strftime("%Y-%m-%d")
+        sql_delete = f"""
+        delete from {self.full_table_name} where date>='{beg_date_str}' and date<='{end_date_str}';
+        """
+        pga2.exec_sql_raw(sql_delete)
+                
         sql_get = f"""
         select symbol,max(date) max_date, min(date) min_date from {self.full_table_name}
         group by symbol
@@ -253,6 +279,7 @@ class HistoryBuilder():
             beg_date = dt_beg if dt_beg is not None else end_date - dt.timedelta(self.days_to_fetch)
             db_min_date = dt.datetime.combine(r.min_date, dt.datetime.min.time())
             db_max_date = dt.datetime.combine(r.max_date, dt.datetime.max.time())
+            
             if (db_min_date - beg_date).days <= 4: # account for weekends + or long holiday
                 # move the begin date up because you already have this data
                 beg_date = db_max_date + dt.timedelta(1)   
@@ -330,7 +357,8 @@ class HistoryBuilder():
         if self.build_table:
             self.build_pg_from_csvs()
         if self.update_table:
-            self.update_yahoo_daily(self.beg_date, self.end_date)
+#             self.update_yahoo_daily(self.beg_date, self.end_date)
+            self.update_daily_with_delete(self.beg_date, self.end_date)
 
 
 if __name__ == '__main__':
@@ -384,7 +412,7 @@ if __name__ == '__main__':
     parser.add_argument('--initial_symbol_list',type=str,
                     help='comma separated list of symbols, like SPY,AAPL,XLE (default is list of SP500 stocks and main sector and commodity etfs)',
                     nargs='?')
-    parser.add_argument('--days_to_fetch',type=str,
+    parser.add_argument('--days_to_fetch',type=int,
                     help=f"number of days of history to fetch (None will be {DEFAULT_DAYS_TO_FETCH})",
                     default=DEFAULT_DAYS_TO_FETCH)
     args = parser.parse_args()
