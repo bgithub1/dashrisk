@@ -29,8 +29,8 @@ class PostgresFetcher():
         self.yahoo_fetcher = BarChartFetcher30Min(bar_type='daily',interval=1)
     def fetch_histories(self,symbol_list,dt_beg,dt_end):
         for symbol in symbol_list:
-            if symbol in self.history_dict:
-                continue
+#             if symbol in self.history_dict:
+#                 continue
             try:
                 df = self.fetch_history(symbol, dt_beg, dt_end)
                 if df is None or len(df)<1:
