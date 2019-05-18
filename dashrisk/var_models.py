@@ -42,8 +42,8 @@ class PostgresFetcher():
                 print(str(e))
             
     def fetch_history(self,symbol,dt_beg,dt_end):
-        if symbol in self.history_dict:
-            return self.history_dict[symbol] 
+#         if symbol in self.history_dict:
+#             return self.history_dict[symbol] 
         df = self.history_builder.get_pg_data(symbol,dt_beg,dt_end)
         if df is None or len(df)<1:
             self.history_builder.add_symbol_to_pg(symbol,dt_beg=dt_beg,dt_end=dt_end)
