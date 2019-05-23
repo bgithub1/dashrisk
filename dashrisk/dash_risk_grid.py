@@ -347,9 +347,9 @@ if __name__ == '__main__':
     )
     
     def process_risk_data(contents):
-        if contents is None:
-            print('returning default process_risk_data')
-            return default_risk_data
+#         if contents is None:
+#             print('returning default process_risk_data')
+#             return default_risk_data
         ret = update_risk_data(
                         contents, USE_POSTGRES=args.use_postgres, dburl=args.dburl, 
                         databasename=args.databasename, username=args.username, 
