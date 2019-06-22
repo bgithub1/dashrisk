@@ -116,19 +116,28 @@ class GridItem():
             return html.Div(children=self.child,className='grid-item')
 #**************************************************************************************************
 
+
 class GridTable():
     def __init__(self,html_id,title,
                  input_content_tuple=None,
                  df_in=None,
                  columns_to_display=None,
-                 editable_columns=None):
+                 editable_columns=None,
+                 input_transformer=None,
+                 use_html_table=False):
         self.html_id = html_id
         self.title = title
         self.input_content_tuple =  input_content_tuple
         self.columns_to_display = columns_to_display
         self.editable_columns = [] if editable_columns is None else editable_columns
+        self.datatable_id = f'{html_id}_datatable'
+        self.output_content_tuple = (self.datatable_id,'data')
+        self.input_transformer = input_transformer
+        self.use_html_table = use_html_table
+        if self.input_transformer is None:
+            self.input_transformer = lambda dict_df: pd.DataFrame(dict_df)
         self.dt_html = self.create_dt_html(df_in=df_in)
-        
+                
     def create_dt_div(self,df_in=None):
         dt = dash_table.DataTable(
             pagination_settings={
@@ -147,15 +156,18 @@ class GridTable():
             ] + [
                 {
                     'if': {'column_id': c},
-                    'textAlign': 'left'
+                    'textAlign': 'left',
                 } for c in ['symbol', 'underlying']
             ],
             
             style_as_list_view=False,
-            n_fixed_rows=1,
-            style_table={'maxHeight':'450','overflowX': 'scroll'} ,
+#             n_fixed_rows=1,
+            style_table={
+                'maxHeight':'450','overflowX': 'scroll',
+            } ,
             editable=True,
-            id=self.html_id + '_datatable'
+#             id=self.html_id + '_datatable'
+            id=self.datatable_id
         )
         if df_in is None:
             df = pd.DataFrame({'no_data':[]})
@@ -191,9 +203,7 @@ class GridTable():
         def output_callback(dict_df):
             if dict_df is None:
                 return None
-            df = pd.DataFrame(dict_df)
-#             self.df = df
-#             self.df_datetime = datetime.datetime.now()
+            df = self.input_transformer(dict_df)
             dt_div = self.create_dt_div(df)
             return dt_div
             
@@ -221,6 +231,7 @@ def charts(x_vals,y_vals,chart_title,x_title,y_title):
     return fig
 
 
+#**************************************************************************************************
 class GridGraph():
     def __init__(self,html_id,title,
                  input_content_tuple=None,
@@ -229,9 +240,12 @@ class GridGraph():
                  x_title=None,
                  y_title=None,
                  figure=None,
-                 df_in=None):
+                 df_in=None,
+                 input_transformer=None):
         self.html_id = html_id
         self.input_content_tuple = input_content_tuple
+
+        self.output_content_tuple = (self.html_id,'figure')        
         self.df_x_column = df_x_column
         self.df_y_column = df_y_column
         self.title = title
@@ -241,6 +255,11 @@ class GridGraph():
         y_vals = []
         if df_in is not None:
             x_vals,y_vals = self.get_x_y_values(df_in)
+        
+        self.input_transformer = input_transformer 
+        if self.input_transformer is None:
+            self.input_transformer = lambda dict_df: pd.DataFrame(dict_df)
+            
         f = charts(x_vals,y_vals,title,x_title,y_title) if figure is None else figure
         gr = dcc.Graph(
                 id=html_id,
@@ -277,7 +296,7 @@ class GridGraph():
             x_vals = []
             y_vals = []
             if dict_df is not None:
-                df = pd.DataFrame(dict_df)
+                df = self.input_transformer(dict_df)#pd.DataFrame(dict_df)
                 x_vals,y_vals = self.get_x_y_values(df)                 
             fig = go.Figure(data = [go.Bar(
                         x=x_vals,
@@ -286,7 +305,34 @@ class GridGraph():
                 layout= go.Layout(title = self.title,plot_bgcolor='#f5f5f0'),
             )
             return fig
-        
+#**************************************************************************************************
+
+#**************************************************************************************************
+class DccStore():        
+    def __init__(self,html_id,
+                 input_content_tuple,
+                 transformer_module):
+        self.html_id = html_id
+        self.input_content_tuple = input_content_tuple
+        self.transformer_module = transformer_module
+        self.dcc_store = dcc.Store(id=html_id)
+        self.dcc_html = html.Div(self.dcc_store,style={"display": "none"})
+        self.output_content_tuple = (self.html_id,'data')
+
+    @property
+    def html(self):
+        return self.dcc_html        
+
+    def callback(self,theapp):
+        @theapp.callback(
+            Output(self.html_id,'data'), 
+            [Input(component_id=self.input_content_tuple[0], component_property=self.input_content_tuple[1])],
+        )
+        def update_store(input_data,*args):
+            return self.transformer_module(input_data)
+ #**************************************************************************************************
+           
+
 
 def create_grid(component_array,num_columns=2):
     gs = grid_style.copy()
@@ -299,11 +345,19 @@ def create_grid(component_array,num_columns=2):
     g =  html.Div([GridItem(c).html if type(c)==str else c.html for c in component_array], style=gs)
     return g
 
+#**************************************************************************************************
 class ReactiveDiv():
-    def __init__(self,html_id,input_tuple):
+    def __init__(self,html_id,input_tuple,input_transformer=None,display=True):
         self.html_id = html_id
         self.input_tuple = input_tuple
-        self.div = html.Div([],id=self.html_id)
+        if display:
+            self.div = html.Div([],id=self.html_id)
+        else:
+            self.div = html.Div([],id=self.html_id,style={'display':'none'})
+        self.input_transformer = input_transformer 
+        if self.input_transformer is None:
+            self.input_transformer = lambda x: str(x)
+            
     @property
     def html(self):
         return self.div        
@@ -314,9 +368,69 @@ class ReactiveDiv():
             [Input(self.input_tuple[0],self.input_tuple[1])]
         )
         def update_div(input):
-            return input        
+            return self.input_transformer(input)        
+        return update_div
+#**************************************************************************************************
+
+#**************************************************************************************************
+class StatusDiv():
+    '''
+    Use a list of lists to update display a status message from multiple inputs:
+        The inner dimension is a list where:
+            dimension 0 is an input_tuple
+            dimension 1 is a string message to display if that input fires
+    
+    Example:
+      [
+        [
+            (input_tuple_from_gridtable1),'gridtable1 is completed'
+        ],
+        [
+            (input_tuple_from_gridtable2),'gridtable2 is completed'
+        ],
+        [
+            (input_tuple_from_gridtable3),'gridtable3 is completed'
+        ]
+      ]
+    '''
+    def __init__(self,html_id,input_tuple_list):
+        '''
+        
+        :param html_id:
+        :param input_tuple_list: a list of lists as described above
+        '''
+        self.html_id = html_id
+        self.store_list = []
+        for i in range(len(input_tuple_list)):
+            dccs = DccStore(f'{html_id}_{i}', input_tuple_list[i][0], lambda x: input_tuple_list[i][1])
+            self.store_list.append(dccs)
+        self.div = html.Div([],id=self.html_id)
+        self.input_history=[None for _ in input_tuple_list]   
+        
+    @property
+    def html(self):
+        return self.div        
+    
+    def callback(self,theapp):
+        @theapp.callback(
+            Output(self.html_id,'children'),
+            [Input(inp.output_content_tuple[0],inp.output_content_tuple[1]) for inp in self.store_list]
+        )
+        def update_div(*inputs):
+            print('entering StatusDiv callback')
+            for i in range(len(inputs)):
+                if inputs[i] is not None and self.input_history[i] is None:
+                    self.input_history[i] = inputs[i]
+                    return inputs[i]
+                if inputs[i] is not None and inputs[i] != self.input_history[i]:
+                    self.input_history[i] = inputs[i]
+                    return inputs[i]                     
+            return None        
         return update_div
 
+#**************************************************************************************************
+
+#**************************************************************************************************
 class CsvUploadButton():
     def __init__(self,button_id,display_text=None,style=None):
         st = select_file_style if style is None else style
@@ -348,8 +462,11 @@ class CsvUploadButton():
                 return None
             dict_df = parse_contents(contents).to_dict('rows')
             return dict_df
+#**************************************************************************************************
         return update_filename
 
+    
+    
 def create_span(html_content,html_id=None,style=None):
     if html_id is not None:
         htmldiv = html.Div(html_content,id=html_id)
@@ -361,6 +478,7 @@ def create_span(html_content,html_id=None,style=None):
         )
     return s
 
+#**************************************************************************************************
 class CsvUploadSpan():
     def __init__(self,html_id):    
         csv_ub = CsvUploadButton(html_id)
@@ -376,38 +494,42 @@ class CsvUploadSpan():
 
 
 def toy_example(host,port):
-    # create the Dash app
-    gts_input = ('upload-data_df','data')
-    # create 2 data tables
+
+    # create a span with a file upload button and a div  for the filename 
+    up_span = CsvUploadSpan('upload-data')
+    file_upload_div = up_span.up_div
+
+    
+    # create 2 grid tables
     columns_to_display=['symbol','position']
     editable_cols = ['position']
+    gts_input = up_span.output_tuple
     gts = [GridTable(f't{i}',f'table {i}',gts_input,editable_columns=editable_cols,columns_to_display=columns_to_display) for i in range(2)]
     
-    # create 2 graphs
+    # create 2 reactive grid graphs
     grs = [GridGraph(f'g{i}', f'graph {i}',(f't{i}_datatable','data'),df_x_column='symbol') for i in range(2)]
-    
+
+    # create status line
+    input_tuples = [
+        [gts[0].output_content_tuple,'gridtable1 is done'],
+        [grs[0].output_content_tuple,'gridgraph1 is done']
+    ]
+    st = StatusDiv('load_status', input_tuples)
+    status_grid = create_grid([st],num_columns=1)
     # combine tables and graph into main grid
     main_grid =  create_grid([gts[0],grs[0],gts[1],grs[1]])
 
     # create title for page
-    title_div = html.H2('dash_grid example')
+    title_div = html.H2('Click on the left side of the next line to upload a csv file that contains a symbol and a position column ')
 
-    # create a span with a file upload button and a div  for the filename 
-    csv_ub = CsvUploadButton('upload-data')
-    csv_name = ReactiveDiv('csv_name',('upload-data','filename'))
-    ub_span = create_span(csv_ub.html,'ub')                       
-    fn_span =  create_span(csv_name.html,'fn')
-    file_upload_div = html.Div([ub_span,fn_span],style=buttons_grid_style)
     
     # create the app layout         
     app = dash.Dash()
-    app.layout = html.Div([title_div,file_upload_div,main_grid])
+    app.layout = html.Div(children=[title_div,file_upload_div,status_grid,main_grid]+[s.html for s in st.store_list])
 
     # create the call backs
-    csv_ub.callback(app)
-    csv_name.callback(app)
-    [gt.callback(app) for gt in gts]
-    [gr.callback(app) for gr in grs]
+    all_components = up_span.upload_components + gts + grs + [st] + st.store_list
+    [c.callback(app) for c in all_components]
     
     # run server
     
@@ -421,7 +543,7 @@ if __name__ == '__main__':
                         default='127.0.0.1')   
     parser.add_argument('--port',type=str,
                         help='port to run server.  Default=8400',
-                        default='8400')   
+                        default='8500')   
     args = parser.parse_args()
     host = args.host
     port = args.port

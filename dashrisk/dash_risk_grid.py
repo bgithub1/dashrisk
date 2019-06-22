@@ -28,6 +28,8 @@ from dashrisk import build_history as bh
 from dashrisk import portfolio_hedge as ph
 import argparse as ap
 import numpy as np
+from textwrap import dedent
+import flask
 
 
 # Step 3: Define some often used variables
@@ -49,6 +51,18 @@ button_style={
     'background-color':'#fffff0',
     'vertical-align':'middle',
 }
+
+markdown_style={
+    'line-height': '12px',
+    'font-size':'10px',
+    'borderWidth': '1px',
+    'borderStyle': 'dashed',
+    'borderRadius': '1px',
+    'textAlign': 'left',
+    'background-color':'#fffff0',
+    'vertical-align':'middle',
+}
+
 
 select_file_style={
     'line-height': '40px',
@@ -271,8 +285,45 @@ if __name__ == '__main__':
             html.Div([html.Div([],style={'display': 'none'})],id='spinner'),
             html.Div([html.H1("LiveRisk Analysis")],
                      style={'background-color':'#2a3f5f','border':'1px solid #C8D4E3','border-radius': '3px'}
-            ),       
-             html.Div([
+            ),
+            html.Div([
+                       html.Span(dcc.Dropdown(id='my-dropdown', value='p1',
+                                     options=[
+                                         {'label': 'Simple stock portfolio', 'value': 'p1'},
+                                         {'label': 'Stocks and Commodities', 'value': 'p2'},
+                                         {'label': 'With options', 'value': 'p3'}
+                                     ]
+                                     ),style=button_style),
+                       html.Span(html.A('Click to Download Example csv',href='',id='last_downloaded'),
+                                 style=button_style),
+                        html.Span(dcc.Markdown(dedent('''   
+                            ### symbol column:
+                            * Symbols with yahoo data 
+                              * IBM, AAPL, ^GSPC, ^EURUSD
+                            * Commodities symbols in the form CodeMonthYear
+                              * CLQ19, ESM20, ZSN19, NGF20
+                            * Options symbols in the form Sym_Expiry_strike_c/p
+                              * IBM_20191222_190_p : 
+                                * *IBM 190 call* 
+                                  *expiring on Dec 22, 2019*
+                              * NGF20_20191225_2.50_c: 
+                                * *NGF20 2.50 Call Option*
+                                  * *expiring on Dec 25th, 2019*
+                                ''')),style=markdown_style),
+                       html.Span(dcc.Markdown(dedent('''
+                            ### position column:
+                            * any positive or negative number
+                            * dollar value of position = price * position
+                              * negaive numbers are short positions
+                              * 10 IBM trading @ \\$190 = \\$1900
+                              * 10 CLQ19 trading @ \\$36.25 = \\$362.50 
+                                * *(NOT \\$362,500.00)*
+                              * 10 ZSU19 trading @ 925 = \\$9,250 
+                                * *(NOT 9.25 * 5000 = \\$46,250.00)*
+                         ''')),style=markdown_style),
+               ],
+                 style=buttons_grid_style),                   
+            html.Div([
                    html.Span(
                         dcc.Upload(
                             id='upload-data',
@@ -360,6 +411,26 @@ if __name__ == '__main__':
         
     prog = pgcm.ProgressComponent(app, process_risk_data, 'spinner', my_display_component_div_to_show, my_display_component_div_to_hide,by_pass=True)
     prog.callbacks
+
+    @app.callback(
+        Output('last_downloaded', 'href'), 
+        [Input('my-dropdown','value')]
+        )
+    def update_link(value):
+        print('href callback')
+        return '/dash/urlToDownload?value={}'.format(value)        
+    
+    @app.server.route('/dash/urlToDownload')
+    def download_csv():
+        value = flask.request.args.get('value')
+        print(f'the value is {value}')
+        
+        return flask.send_file('spdr_stocks.csv',
+                               mimetype='text/csv',
+                               attachment_filename='spdr_stocks.csv',
+                               as_attachment=True)
+        
+    
     
     @app.callback(
         [
@@ -554,9 +625,5 @@ if __name__ == '__main__':
             className='item1',style=grid_style
         )
         return ret
-         
-    
-        
-
 
     app.run_server(host=ip,port=port)

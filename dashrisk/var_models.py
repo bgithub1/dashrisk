@@ -290,7 +290,7 @@ class VarModel():
         
 #         df_positions_3['unit_var'] = df_positions_3.apply(lambda r: r[self.price_column] * r.stdev * norm.ppf(.99) * (1/256)**.5 / r[self.price_column],axis=1 )
         df_positions_3['unit_var'] = df_positions_3.apply(_unit_var,axis=1 )
-        df_positions_3['position_var'] = df_positions_3.apply(lambda r: r.unit_var * r.position * r[self.price_column] ,axis=1 )
+        df_positions_3['position_var'] = df_positions_3.apply(lambda r: r.unit_var * float(r.position) * r[self.price_column] ,axis=1 )
         df_positions_3 = df_positions_3.sort_values('symbol')
         # create an spy standard deviation that is the historical average
         cols_no_symbol = [c for c in df_positions_3.columns.values if c != 'symbol']

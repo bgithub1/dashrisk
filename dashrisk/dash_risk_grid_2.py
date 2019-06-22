@@ -28,6 +28,7 @@ from dashrisk import build_history as bh
 from dashrisk import portfolio_hedge as ph
 import argparse as ap
 import numpy as np
+from textwrap import dedent
 
 
 # Step 3: Define some often used variables
@@ -253,9 +254,32 @@ if __name__ == '__main__':
          
     app.layout = html.Div([
             html.Div([html.Div([],style={'display': 'none'})],id='spinner'),
-            html.Div([html.H1("LiveRisk Analysis")],
+            html.Div([html.H1("LiveRisk Analysis"),html.H4("hi there")],
                      style={'background-color':'#2a3f5f','border':'1px solid #C8D4E3','border-radius': '3px'}
-            ),       
+            ),
+            html.Div([dcc.Markdown(dedent('''
+                ### Download example portfolio
+                
+                
+                To analyze your own portfolio:
+                1. Download the example portfolio.csv file  by clicking this button.
+                2. Add your own securites.
+                3. The csv file must have 2 columns: symbol and position:
+                a.  The symbol can be any symbol described below
+                b.  A position of 1 for IBM when IBM is trading at $190.00 will have a dollar value of $190.00
+                c.  A position of 1 for CLZ21 when CLZ21 is trading at $55.35 will have a dollar value of $55.35 - NOT A POSITION OF $55,350.00 (one full CME contract).  To enter a position that has the value of one full CME contract enter 1000.
+                d. A position of 1 for ZSU19 when ZSU19 is trading at $855.00 will have a dollar value of $855.00 - NOT A POSITION OF $8.55 * 5000 = $42,750.00 (one full CBOT contract).  To enter a position that has the value of one full CBOT contract enter 50.
+                
+                Allowable Symbols:
+                1. The symbol has historical data in Yahoo Finance (IBM, AAPL, ^EURUSD, ^GSPC)
+                2. A commodity symbol made up of the contract, the month code and a 2 digit year code.  Examples:
+                *    crude: CLZ21, sp: ESM20, natural gas: NGF20, soybeans: ZSU19, corn: ZCN19
+                3. An option symbol like: 
+                * IBM_20191222_190_p : IBM 190 call expiring on Dec 22, 2019 
+                * NGF20_20191225_2.50_c: 2.50 Call Option on the CME Natural gas Jan 2020 futures contract, expiring on Dec 25th, 2019
+                * CLZ21_20211115_35.00_p: 35.00 Put Option on the CME Crude Dec 2021 futures contract, expiring on Nov 15, 2021 
+                * ZSU19_20190825_925_c: 925 Call Option on the CBOT Soybeans Sept 2019 contract, expiring on Aug 25, 2019
+                            '''))]),                 
              html.Div([
                    html.Span(
                         dcc.Upload(
