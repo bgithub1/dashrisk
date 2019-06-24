@@ -177,7 +177,9 @@ class HistoryBuilder():
         spydr_short_names = ['SPY','XLE','XLU','XLK','XLB','XLP','XLY','XLI','XLC','XLV','XLF']
         commodity_etf_short_names = ['USO','UNG','DBC','DBA','GLD','USCI']
         currency_etf_short_names = ['FXY','FXE','FXB','FXF','FXC','FXA']
-        sp = list(pd.read_csv(url_constituents).Symbol)
+        print('fetching sp constituents ...')
+#         sp = list(pd.read_csv(url_constituents).Symbol)
+        sp = list(pd.read_csv('./sp_constituents.csv').Symbol)
         ret = sp + spydr_short_names + commodity_etf_short_names + currency_etf_short_names
         return ret
     
