@@ -295,32 +295,7 @@ if __name__ == '__main__':
                                      ]
                                      ),style=button_style),
                        html.Span(html.A('Click to Download Example csv',href='',id='last_downloaded'),
-                                 style=button_style),
-                        html.Span(dcc.Markdown(dedent('''   
-                            ### symbol column:
-                            * Symbols with yahoo data 
-                              * IBM, AAPL, ^GSPC, ^EURUSD
-                            * Commodities symbols in the form CodeMonthYear
-                              * CLQ19, ESM20, ZSN19, NGF20
-                            * Options symbols in the form Sym_Expiry_strike_c/p
-                              * IBM_20191222_190_p : 
-                                * *IBM 190 call* 
-                                  *expiring on Dec 22, 2019*
-                              * NGF20_20191225_2.50_c: 
-                                * *NGF20 2.50 Call Option*
-                                  * *expiring on Dec 25th, 2019*
-                                ''')),style=markdown_style),
-                       html.Span(dcc.Markdown(dedent('''
-                            ### position column:
-                            * any positive or negative number
-                            * dollar value of position = price * position
-                              * negaive numbers are short positions
-                              * 10 IBM trading @ \\$190 = \\$1900
-                              * 10 CLQ19 trading @ \\$36.25 = \\$362.50 
-                                * *(NOT \\$362,500.00)*
-                              * 10 ZSU19 trading @ 925 = \\$9,250 
-                                * *(NOT 9.25 * 5000 = \\$46,250.00)*
-                         ''')),style=markdown_style),
+                                 style=button_style)
                ],
                  style=buttons_grid_style),                   
             html.Div([

@@ -47,29 +47,26 @@ class DashRisk():
         print ('entering create_risk_tables')
         if dict_df is None or len(dict_df)<=0:
             return {}
-        
-        df = pd.DataFrame(dict_df)
+#             df = DF_NO_POSITION.copy()
+        else:
+            df = pd.DataFrame(dict_df)
         return rt.update_risk_data(df, self.use_postgres, 
                 self.dburl, self.databasename, self.username, self.password, 
                 self.schema_name, self.yahoo_daily_table)
         
-
-    def position_grid_table(self,up_span):
-        columns_to_display=['symbol','position']
-        editable_cols = ['position']
-        gts_input = up_span.output_tuple
-        pos_gridtable = dg2.GridTable('portfolio', 'Portfolio Table',gts_input,editable_columns=editable_cols,columns_to_display=columns_to_display)
-        return pos_gridtable
-    
-#     def risk_tables(self,gts1):
-#         # Step 1: create dcc.Store for risk info
-#         risk_tables_store = dg2.DccStore('port_storage', gts1.output_content_tuple, self.create_risk_tables)
-    
-    def create_risk_components(self,risk_tables_store):
-        # Step 2: define the columns in the order you want to show them
-        risk_info_cols = ['symbol','underlying','position']
+    def create_risk_components(self,risk_tables_store,rounding=2):
+        '''
+        Create dash_grid components (which are dash_core_components that are wrapped with callbacks)
+        :param risk_tables_store: an instance of the class DccStore, which is used to hold all risk DataFrames 
+                 that get created in calls to the module var_models
+        :param rounding: the rounding that you want for your risk values (like position_var, detla, gamma, etc)
+        '''
+        # Step 2: *************** define the columns in the order you want to show them *******************
+        risk_by_symbol_info_cols = ['symbol','position']
+        risk_by_underlying_info_cols = ['underlying']
         risk_value_cols = ['position_var','delta','gamma','vega','theta','rho']
-        risk_cols = risk_info_cols + risk_value_cols
+        risk_by_symbol_cols = risk_by_symbol_info_cols + risk_value_cols
+        risk_by_underlying_cols = risk_by_underlying_info_cols + risk_value_cols
         # data that you get from the DccStore component is a dictionary that contains a list of json
         #  the "tranformer" function below creates a DataFrame out of that json
         #  Pass this function to the constructor of GridTable via the input_transformer argument
@@ -79,65 +76,100 @@ class DashRisk():
                     return None
                 df = pd.DataFrame(data[risk_type] ) 
                 for c in rounding_cols:
-                    df[c] = df[c].round(4)   
+                    df[c] = df[c].round(rounding)   
                 return df
             return _ret
         
-        # Step 3: create GridTables for risk components
-        var_by_symbol = dg2.GridTable('var_by_symbol', 'Position Var By Symbol',
-                risk_tables_store.output_content_tuple,
-                editable_columns=['position'],
-                columns_to_display=['symbol','position','position_var'],
-                input_transformer=_rbs_trans('df_var',['position_var']))
+        # Step 3: ****************** create GridTables for risk components *****************************
+#         var_by_symbol = dg2.GridTable('var_by_symbol', 'Position Var By Symbol',
+#                 risk_tables_store.output_content_tuple,
+#                 editable_columns=['position'],
+#                 columns_to_display=['symbol','position','position_var'],
+#                 input_transformer=_rbs_trans('df_var',['position_var']))
+        
         risk_by_symbol = dg2.GridTable('risk_by_symbol', 'Risk By Symbol',
                 risk_tables_store.output_content_tuple,
                 editable_columns=[],
-                columns_to_display=risk_cols,
+                columns_to_display=risk_by_symbol_cols,
                 input_transformer=_rbs_trans('df_risk_all',risk_value_cols))
+
         risk_by_underlying = dg2.GridTable('df_risk_by_underlying', 'Risk By Underlying',
                 risk_tables_store.output_content_tuple,
                 editable_columns=[],
-                columns_to_display=[c for c in risk_cols if c not in ['symbol','position']],
+                columns_to_display=risk_by_underlying_cols,
                 input_transformer=_rbs_trans('df_risk_by_underlying',risk_value_cols))
+
+        atm_info = dg2.GridTable('df_atm_info', 'Atm, Std and N-day High-Low',
+                risk_tables_store.output_content_tuple,
+#                 editable_columns=[],
+                columns_to_display=['underlying','close','stdev','d1','d5','d10','d15','d20'],
+                input_transformer=_rbs_trans('df_atm_info',['close','stdev','d1','d5','d10','d15','d20']))
+
+        def _corr_trans(risk_type):
+            def _ret(data):
+                if data is None or risk_type not in data:
+                    return None
+                df = pd.DataFrame(data[risk_type] ) 
+                rounding_cols = [c for c in df.columns.values if c not in ['underlying','symbol','*underlying','*symbol']]
+                for c in rounding_cols:
+                    df[c] = df[c].round(rounding)   
+                return df
+            return _ret
+        corr_returns = dg2.GridTable('df_corr', 'Correlations (Returns)',
+                risk_tables_store.output_content_tuple,
+                input_transformer=_corr_trans('df_corr'))
+        corr_prices = dg2.GridTable('df_corr_price', 'Correlations (Prices)',
+                risk_tables_store.output_content_tuple,
+                input_transformer=_corr_trans('df_corr_price'))
         
-        # return dict of components and whole risk grid
+        # Step 4: ******************* return dict of components and whole risk grid *******************
         risk_grid =  dg2.create_grid([risk_by_symbol,risk_by_underlying,risk_tables_store])
-        return {'risk_grid':risk_grid,'risk_by_symbol':risk_by_symbol,
-                'risk_by_underlying':risk_by_underlying,
-                'var_by_symbol':var_by_symbol,
-                'risk_tables_store':risk_tables_store}
+        info_grid = dg2.create_grid([corr_returns,corr_prices,atm_info],num_columns=1)
+        
+        return {
+            'risk_grid':risk_grid,
+            'info_grid':info_grid,
+            'callback_components':[risk_by_symbol,risk_by_underlying,corr_returns,corr_prices,atm_info]
+        }
     
     def create_app(self):
-        # Step 1: create a span with a file upload button and a div  for the filename 
-        up_span = dg2.CsvUploadSpan('upload-data')
-        file_upload_div = up_span.up_div
+        # Step 1: ****************create a grid with a file upload button and a div  for the filename *****************
+        up_grid = dg2.CsvUploadGrid('upload-data',
+                        display_text="Click Here to select a LOCAL CSV file as your portfolio",
+                        file_name_transformer=lambda fn: f'YOU ARE VIEWING: {DEFAULT_PORTFOLIO_NAME if fn is None else fn}' )
         
-
-#         # Step 2: create Portfolio grid table
-#         gts1 = self.position_grid_table(up_span)
-#         
-#         # Step 3: create reactive graph of position dollars
-#         grs1 = dg2.GridGraph('graph1', 'Position Dollars',gts1.output_content_tuple,df_x_column='symbol')
-# 
-#         # Step 4 create position grid
-#         position_grid =  dg2.create_grid([gts1,grs1])
-#         position_components = [gts1,grs1]
-# 
-#         # Step 5: create a storage component to store dataframes in the browser's DOM
-# 
-#         # Step 6: create risk by instrument grid
-#         risk_grid_dict  = self.risk_tables(gts1)
         
-        # Step 2: create position_by_symbol GridTable
-        position_by_symbol = self.position_grid_table(up_span)
-
-        # Step 3: create dcc.Store of all DataFrames (in json format) that will be used as inputs to various GridTables and GridGraphs
+        # Step 2: ***************** create position_by_symbol GridTable ******************
+        position_by_symbol = dg2.GridTable('portfolio', 'Portfolio Table', up_grid.output_tuple,
+                editable_columns=['position'],columns_to_display=['symbol','position'],
+                input_transformer = lambda dict_df: DF_NO_POSITION if dict_df is None else pd.DataFrame(dict_df))
+        
+        # Step 3: ****** create dcc.Store of all DataFrames (in json format) that will be used as inputs to 
+        #                  various GridTables and GridGraphs  *********************************
         risk_tables_store = dg2.DccStore('port_storage', position_by_symbol.output_content_tuple, self.create_risk_tables)
         
-        # Step 3: create GridTable Dash components to display risk, correlation and symbol info (like atm_price, std and highs/lows)
+        # Step 4: ************** create divs of risk aggregates *************************
+        pvar_div = dg2.ReactiveDiv('pvar_div', risk_tables_store.output_content_tuple, 
+                        lambda data:f"Portfolio 1/99 VaR = {0 if 'port_var' not in data else round(data['port_var'],2)}")
+        sp_eq_div = dg2.ReactiveDiv('sp_eq_div', risk_tables_store.output_content_tuple, 
+                        lambda data:f"S&P500 Equivilant Position = {0 if 'sp_dollar_equiv' not in data else round(data['sp_dollar_equiv'],2)}")
+        delta_div = dg2.ReactiveDiv('delta_div', risk_tables_store.output_content_tuple, 
+                        lambda data:f"delta = {0 if 'delta' not in data else round(data['delta'],2)}")
+        gamma_div = dg2.ReactiveDiv('gamma_div', risk_tables_store.output_content_tuple, 
+                        lambda data:f"gamma = {0 if 'delta' not in data else round(data['gamma'],2)}")
+        vega_div = dg2.ReactiveDiv('vega_div', risk_tables_store.output_content_tuple, 
+                        lambda data:f"vega = {0 if 'delta' not in data else round(data['vega'],2)}")
+        theta_div = dg2.ReactiveDiv('theta_div', risk_tables_store.output_content_tuple, 
+                        lambda data:f"theta = {0 if 'delta' not in data else round(data['theta'],2)}")
+        
+        risk_agg1_grid = dg2.create_grid([pvar_div,sp_eq_div])
+        risk_agg2_grid = dg2.create_grid([delta_div,gamma_div,vega_div,theta_div],num_columns=4)
+        
+        # Step 4: ********* create GridTable Dash components to display risk, 
+        #                correlation and symbol info (like atm_price, std and highs/lows) ************************
         risk_grid_dict  = self.create_risk_components(risk_tables_store)
         
-        #      3.2 var_by_symbol_graph
+        #      4.2 var_by_symbol_graph
         def _transform_var_graph(data):
             if data is None or 'df_var' not in data:
                 return None
@@ -146,26 +178,60 @@ class DashRisk():
                 risk_tables_store.output_content_tuple,df_x_column='symbol',df_y_column='position_var',
                 input_transformer=_transform_var_graph)
 
-        # Step 4 create position grid 
+        # Step 5 ********************** create position grid ***********************************
         position_grid =  dg2.create_grid([position_by_symbol,var_by_symbol_graph])
 
-        # Step 5: create title for page
-        title_div = html.Div([html.H2(self.page_title)],
+        # Step 6: *********************** create title for page *****************************
+        title_div = html.Div([html.H2(self.page_title),html.H4(' (see Quick Start at bottom of page for help)')],
                      style={'background-color':'#2a3f5f','border':'1px solid #C8D4E3','border-radius': '3px'}
         )
-                
-        # Step 6: create the app layout         
-        app = dash.Dash()
-        app.layout = html.Div([title_div,file_upload_div,position_grid,risk_grid_dict['risk_grid']])
-    
-        # Step 7: create the call backs using all Dash components that we created above
-        position_components = [position_by_symbol,var_by_symbol_graph]
-        risk_by_keys = [k for k in risk_grid_dict.keys() if 'risk_by' in k]
-        risk_components = [risk_grid_dict['risk_tables_store']] + [risk_grid_dict[r] for r in risk_by_keys]
-        all_components = up_span.upload_components + position_components + risk_components
-        [c.callback(app) for c in all_components]
+   
+#         # create status line
+#         input_tuples = [
+#             [position_by_symbol.output_content_tuple,'STATUS: creating risk tables ...'],
+#             [var_by_symbol_graph.output_content_tuple,'STATUS: All Loaded']
+#         ]
+#         st = dg2.StatusDiv('load_status', input_tuples)
+#         status_grid = dg2.create_grid([st],num_columns=1)
         
-        # Step 10: run server
+        # Step 7: ************************* create example file download ********************************
+        dropdown_labels = ['Simple Stock Example','SPDR ETF Options example','Mixed with Commodities Example']
+        dropdown_values = ['example_simple_stocks.csv','spdr_stocks.csv','example_commodities.csv']
+        file_download_component = dg2.FileDownLoadDiv('example_download', dropdown_labels, dropdown_values, 
+                            'Click to Download')
+        fd_div = file_download_component.html
+            
+        # Step 7: ************************ create instruction markdowns ********************************
+        mark_help_main = dg2.MarkDownDiv('general_help',
+                open('./markdown_df_grid_help.txt','r').read())
+        mark_sym_col = dg2.MarkDownDiv('symbol_help',
+                open('./markdown_symbol_column.txt','r').read())
+        mark_pos_col = dg2.MarkDownDiv('position_help',
+                open('./markdown_position_column.txt','r').read())
+        help_main_grid = dg2.create_grid([mark_help_main],num_columns=1)
+        help_column_explanation_grid = dg2.create_grid([mark_sym_col,mark_pos_col])
+
+        # Step 8: ************************* create the app layout ***************************************
+        app = dash.Dash()
+        app.secret_key = 'development key'
+        
+        app.layout = html.Div([title_div,up_grid.grid,risk_agg1_grid,risk_agg2_grid,position_grid,
+                               risk_grid_dict['risk_grid'],risk_grid_dict['info_grid'],
+                               help_main_grid,fd_div,help_column_explanation_grid])
+    
+        
+        # Step 9: ********************* define flask route for file download component *******************
+        file_download_component.route(app)
+
+        # Step 10: *************** create the call backs using all Dash components that we created above *******************
+        risk_agg_components  = [pvar_div,sp_eq_div,delta_div,gamma_div,vega_div,theta_div]
+        position_components = [position_by_symbol,var_by_symbol_graph,file_download_component]
+        risk_components = [risk_tables_store] + risk_grid_dict['callback_components']
+        all_components = up_grid.upload_components + risk_agg_components + position_components + risk_components
+        [c.callback(app) for c in all_components]
+
+        
+        # Step 10: ************************* run server **************************************
         app.run_server(host=self.host,port=self.port)
         
     

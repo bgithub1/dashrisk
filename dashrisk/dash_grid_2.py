@@ -13,6 +13,8 @@ import plotly.graph_objs as go
 import numpy as np
 import argparse as ap
 import datetime,base64,io,pytz
+import flask
+from dashrisk.dash_grid import grid_style
 
 DEFAULT_TIMEZONE = 'US/Eastern'
 
@@ -21,7 +23,7 @@ DEFAULT_TIMEZONE = 'US/Eastern'
 
 grid_style = {'display': 'grid',
   'grid-template-columns': '49.9% 49.9%',
-  'grid-gap': '10px',
+  'grid-gap': '1px',
   'border': '1px solid #000',
 }
 
@@ -39,6 +41,17 @@ button_style={
     'background-color':'#fffff0',
     'vertical-align':'middle',
 }
+
+blue_button_style={
+    'line-height': '40px',
+    'borderWidth': '1px',
+    'borderStyle': 'dashed',
+    'borderRadius': '1px',
+    'textAlign': 'center',
+    'background-color':'#A9D0F5',
+    'vertical-align':'middle',
+}
+
 
 select_file_style={
     'line-height': '40px',
@@ -135,7 +148,7 @@ class GridTable():
         self.input_transformer = input_transformer
         self.use_html_table = use_html_table
         if self.input_transformer is None:
-            self.input_transformer = lambda dict_df: pd.DataFrame(dict_df)
+            self.input_transformer = lambda dict_df: None if dict_df is None else pd.DataFrame(dict_df)
         self.dt_html = self.create_dt_html(df_in=df_in)
                 
     def create_dt_div(self,df_in=None):
@@ -174,9 +187,9 @@ class GridTable():
         else:
             df = df_in.copy()
             if self.columns_to_display is not None:
-                df = df[self.columns_to_display]
+                df = df[self.columns_to_display]                
         dt.data=df.to_dict("rows")
-        dt.columns=[{"name": i, "id": i,'editable': True if i in self.editable_columns else False} for i in df.columns]                    
+        dt.columns=[{"name": i, "id": i,'editable': True if i in self.editable_columns else False} for i in df.columns.values]                    
         return [
                 html.H4(self.title,style={'height':'3px'}),
                 dt
@@ -201,8 +214,8 @@ class GridTable():
             [Input(component_id=self.input_content_tuple[0], component_property=self.input_content_tuple[1])]
         )
         def output_callback(dict_df):
-            if dict_df is None:
-                return None
+#             if dict_df is None:
+#                 return None
             df = self.input_transformer(dict_df)
             dt_div = self.create_dt_div(df)
             return dt_div
@@ -341,17 +354,19 @@ def create_grid(component_array,num_columns=2):
     percents = [str(round(100/num_columns-.006,1))+'%' for _ in range(num_columns)]
     perc_string = " ".join(percents)
     gs['grid-template-columns'] = perc_string
-#     g =  html.Div([GridItem(c).html if type(c)==str else c.html for c in component_array], className='item1',style=gs)
     g =  html.Div([GridItem(c).html if type(c)==str else c.html for c in component_array], style=gs)
     return g
 
 #**************************************************************************************************
 class ReactiveDiv():
-    def __init__(self,html_id,input_tuple,input_transformer=None,display=True):
+    def __init__(self,html_id,input_tuple,
+                 input_transformer=None,display=True,
+                 style=None):
         self.html_id = html_id
         self.input_tuple = input_tuple
+        s = button_style if style is None else style
         if display:
-            self.div = html.Div([],id=self.html_id)
+            self.div = html.Div([],id=self.html_id,style=s)
         else:
             self.div = html.Div([],id=self.html_id,style={'display':'none'})
         self.input_transformer = input_transformer 
@@ -371,6 +386,26 @@ class ReactiveDiv():
             return self.input_transformer(input)        
         return update_div
 #**************************************************************************************************
+default_markdown_style={
+    'borderWidth': '1px',
+    'borderStyle': 'dashed',
+    'borderRadius': '1px',
+    'background-color':'#ffffff',
+}
+
+class MarkDownDiv():
+    def __init__(self,html_id,markdown_text,markdown_style=None):
+        self.html_id = html_id
+        ms = default_markdown_style if  markdown_style is None else markdown_style
+        self.html_element = html.Span(dcc.Markdown(markdown_text),style=ms)
+            
+    @property
+    def html(self):
+        return self.html_element        
+#**************************************************************************************************
+
+#**************************************************************************************************
+
 
 #**************************************************************************************************
 class StatusDiv():
@@ -393,7 +428,7 @@ class StatusDiv():
         ]
       ]
     '''
-    def __init__(self,html_id,input_tuple_list):
+    def __init__(self,html_id,input_tuple_list,style=None):
         '''
         
         :param html_id:
@@ -404,7 +439,10 @@ class StatusDiv():
         for i in range(len(input_tuple_list)):
             dccs = DccStore(f'{html_id}_{i}', input_tuple_list[i][0], lambda x: input_tuple_list[i][1])
             self.store_list.append(dccs)
-        self.div = html.Div([],id=self.html_id)
+        s = style
+        if s is None:
+            s = select_file_style
+        self.div = html.Div([html.Div([],id=self.html_id,style=s)]+[s.html for s in self.store_list])
         self.input_history=[None for _ in input_tuple_list]   
         
     @property
@@ -418,6 +456,7 @@ class StatusDiv():
         )
         def update_div(*inputs):
             print('entering StatusDiv callback')
+            print(inputs)
             for i in range(len(inputs)):
                 if inputs[i] is not None and self.input_history[i] is None:
                     self.input_history[i] = inputs[i]
@@ -425,7 +464,8 @@ class StatusDiv():
                 if inputs[i] is not None and inputs[i] != self.input_history[i]:
                     self.input_history[i] = inputs[i]
                     return inputs[i]                     
-            return None        
+            return None  
+        [c.callback(theapp) for c in self.store_list]      
         return update_div
 
 #**************************************************************************************************
@@ -433,7 +473,7 @@ class StatusDiv():
 #**************************************************************************************************
 class CsvUploadButton():
     def __init__(self,button_id,display_text=None,style=None):
-        st = select_file_style if style is None else style
+        self.style = button_style if style is None else style
         self.button_id = button_id
         self.html_id = button_id
         self.output_tuple = (f'{self.button_id}_df','data')
@@ -448,7 +488,7 @@ class CsvUploadButton():
         self.store = dcc.Store(id=f'{self.button_id}_df')
     @property
     def html(self):
-        return html.Div([self.dc,self.store])       
+        return html.Div([self.dc,self.store],style=self.style)       
     
     def callback(self,theapp):
         @theapp.callback(
@@ -462,8 +502,8 @@ class CsvUploadButton():
                 return None
             dict_df = parse_contents(contents).to_dict('rows')
             return dict_df
-#**************************************************************************************************
         return update_filename
+#**************************************************************************************************
 
     
     
@@ -489,8 +529,66 @@ class CsvUploadSpan():
     @property
     def html(self):
         return self.up_div
+
+class CsvUploadGrid():
+    def __init__(self,html_id,display_text=None,file_name_transformer=None):    
+        csv_ub = CsvUploadButton(html_id,style=blue_button_style,display_text=display_text)
+        csv_name = ReactiveDiv(f'{html_id}_csv_name',(csv_ub.html_id,'filename'),style=blue_button_style,
+                               input_transformer=file_name_transformer)
+        self.upload_components = [csv_ub,csv_name]
+        self.grid = create_grid(self.upload_components)
+        self.output_tuple = csv_ub.output_tuple
+
 #**************************************************************************************************
 
+#**************************************************************************************************
+class FileDownLoadDiv():
+    def __init__(self,html_id,
+                 dropdown_labels,dropdown_values,a_link_text,
+                 create_file_name_transformer=None,
+                 style=None):
+        self.html_id = html_id
+        s = button_style if style is None else style
+        self.input_tuple = (f'{html_id}_dropdown','value')
+        dropdown_choices = [{'label':l,'value':v} for l,v in zip(dropdown_labels,dropdown_values)]
+        dropdown_div = html.Div([
+                dcc.Dropdown(id=self.input_tuple[0], value=dropdown_values[0],
+                options=dropdown_choices
+                ,style=s,placeholder="Select a File Download Option")
+        ])
+        self.output_tuple = (f'{html_id}_last_downloaded','href')
+        href_div = html.Div(html.A(a_link_text,href='',id=self.output_tuple[0]),style=s)
+        gs= grid_style
+        gs['background-color'] = '#fffff0'
+        self.fd_div = html.Div([dropdown_div,href_div],style=gs)
+        self.create_file_name_transformer = lambda value: str(value) if create_file_name_transformer is None else create_file_name_transformer
+    @property
+    def html(self):
+        return self.fd_div
+        
+
+    def callback(self,theapp):     
+        @theapp.callback(
+            Output(self.output_tuple[0], self.output_tuple[1]), 
+            [Input(self.input_tuple[0],self.input_tuple[1])]
+            )
+        def update_link(value):
+            return '/dash/urlToDownload?value={}'.format(value)        
+        return update_link
+    
+    def route(self,theapp):
+        @theapp.server.route('/dash/urlToDownload')
+        def download_csv():
+            value = flask.request.args.get('value')            
+            fn = self.create_file_name_transformer(value)
+            print(f'FileDownLoadDiv callback file name = {fn}')
+            return flask.send_file(fn,
+                               mimetype='text/csv',
+                               attachment_filename=fn,
+                               as_attachment=True)
+            return download_csv
+                
+#**************************************************************************************************
 
 
 def toy_example(host,port):
@@ -511,8 +609,8 @@ def toy_example(host,port):
 
     # create status line
     input_tuples = [
-        [gts[0].output_content_tuple,'gridtable1 is done'],
-        [grs[0].output_content_tuple,'gridgraph1 is done']
+        [gts[0].output_content_tuple,'STATUS: gridtable1 is done'],
+        [grs[0].output_content_tuple,'STATUS: All Loaded']
     ]
     st = StatusDiv('load_status', input_tuples)
     status_grid = create_grid([st],num_columns=1)
@@ -525,10 +623,11 @@ def toy_example(host,port):
     
     # create the app layout         
     app = dash.Dash()
-    app.layout = html.Div(children=[title_div,file_upload_div,status_grid,main_grid]+[s.html for s in st.store_list])
+#     app.layout = html.Div(children=[title_div,file_upload_div,status_grid,main_grid] + [s.html for s in st.store_list])
+    app.layout = html.Div(children=[title_div,file_upload_div,status_grid,main_grid])
 
     # create the call backs
-    all_components = up_span.upload_components + gts + grs + [st] + st.store_list
+    all_components = up_span.upload_components + gts + grs + [st] #+ st.store_list
     [c.callback(app) for c in all_components]
     
     # run server
