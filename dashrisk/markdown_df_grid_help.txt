@@ -1,9 +1,0 @@
-### Quick Start
-1. From the Dropdown (below left), select an Example csv to download.
-2. Click the Link "Click to Download" (below right) to execute the download of the selected example.
-3. Edit the downloaded example position csv file.
-    * *Change the symbol column to analyze the stocks, commodities, etc that you make up your position.*
-    * *One each row, change the position size for that symbol.*
-4. Add and delete rows as necessary
-5. View the explantions for the symbol and position column below the example csv download line.
-       
