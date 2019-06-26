@@ -39,6 +39,7 @@ STYLE_UPGRID['background-color'] = '#EAEDED'
 STYLE_UPGRID['line-height'] = '10px'
 STYLE_UPGRID['color'] = '#21618C'
 
+table_head_div = lambda s:html.Div([s],style={'text-align': 'center','color':'#22aaff'})
 
 class DashRisk():
     def __init__(self,
@@ -98,20 +99,23 @@ class DashRisk():
                 return df
             return _ret
         
-        # Step 3: ****************** create GridTables for risk components *****************************
-        risk_by_symbol = dg2.GridTable('risk_by_symbol', 'Risk By Symbol',
+        # Step 3: ****************** create GridTables for risk components *****************************        
+        risk_by_symbol_header = table_head_div('Risk By Symbol')
+        risk_by_symbol = dg2.GridTable('risk_by_symbol', risk_by_symbol_header,
                 risk_tables_store.output_content_tuple,
                 editable_columns=[],
                 columns_to_display=risk_by_symbol_cols,
                 input_transformer=_rbs_trans('df_risk_all',risk_value_cols))
 
-        risk_by_underlying = dg2.GridTable('df_risk_by_underlying', 'Risk By Underlying',
+        risk_by_underlying_header = table_head_div('Risk By Underlying')
+        risk_by_underlying = dg2.GridTable('df_risk_by_underlying', risk_by_underlying_header,
                 risk_tables_store.output_content_tuple,
                 editable_columns=[],
                 columns_to_display=risk_by_underlying_cols,
                 input_transformer=_rbs_trans('df_risk_by_underlying',risk_value_cols))
 
-        atm_info = dg2.GridTable('df_atm_info', 'Atm, Std and N-day High-Low',
+        atm_info_header = table_head_div('Atm, Std and N-day High-Low')
+        atm_info = dg2.GridTable('df_atm_info', atm_info_header,
                 risk_tables_store.output_content_tuple,
 #                 editable_columns=[],
                 columns_to_display=['underlying','close','stdev','d1','d5','d10','d15','d20'],
@@ -127,10 +131,12 @@ class DashRisk():
                     df[c] = df[c].round(rounding)   
                 return df
             return _ret
-        corr_returns = dg2.GridTable('df_corr', 'Correlations (Returns)',
+        corr_returns_header = table_head_div('Correlations (Returns)')
+        corr_returns = dg2.GridTable('df_corr',corr_returns_header,
                 risk_tables_store.output_content_tuple,
                 input_transformer=_corr_trans('df_corr'))
-        corr_prices = dg2.GridTable('df_corr_price', 'Correlations (Prices)',
+        corr_prices_header = table_head_div('Correlations (Prices)')
+        corr_prices = dg2.GridTable('df_corr_price', corr_prices_header,
                 risk_tables_store.output_content_tuple,
                 input_transformer=_corr_trans('df_corr_price'))
         
@@ -146,9 +152,6 @@ class DashRisk():
     
     def create_app(self):
         # Step 1: *********************** create title for page *****************************
-#         title_div = html.Div([html.H3('Portfolio Risk Analysis'),html.H4(' (See Quick Start at page bottom for help)')],
-#                      style={'background-color':'#2a3f5f','border':'1px solid #C8D4E3','border-radius': '3px'}
-#         )
         title_div = html.Div([html.H3('Portfolio Risk Analysis'),html.H4(' (See Quick Start at page bottom for help)')],
                      style=STYLE_TITLE
         )
@@ -160,7 +163,9 @@ class DashRisk():
         
         
         # Step 3: ***************** create position_by_symbol GridTable ******************
-        position_by_symbol = dg2.GridTable('portfolio', 'Portfolio Table (You can edit the position column)', up_grid.output_tuple,
+        position_by_symbol = dg2.GridTable('portfolio', 
+                                   table_head_div('Portfolio Table (position sizes are editable)'), 
+                                   up_grid.output_tuple,
                 editable_columns=['position'],columns_to_display=['symbol','position'],
                 input_transformer = lambda dict_df: DF_NO_POSITION if dict_df is None else pd.DataFrame(dict_df))
         
