@@ -107,15 +107,17 @@ class HistoryBuilder():
         end_date = dt.datetime.now()
         beg_date = end_date - dt.timedelta(self.days_to_fetch)
         for sym in symbols:
+            df = None
             self.logger.info(f'processing {sym}')
-            try:
-                df =web.DataReader(sym, 'yahoo', beg_date, end_date)
-            except:
-                try:
-                    df =web.DataReader(sym, 'yahoo', beg_date, end_date)
-                except Exception as e:
-                    self.logger.warn(str(e))
-                    continue
+            df = self.get_yahoo_data(sym, beg_date, end_date)
+#             try:
+#                 df =web.DataReader(sym, 'yahoo', beg_date, end_date)
+#             except:
+#                 try:
+#                     df =web.DataReader(sym, 'yahoo', beg_date, end_date)
+#                 except Exception as e:
+#                     self.logger.warn(str(e))
+#                     continue
             hist_dict[sym] = df
             time.sleep(.5)
         return hist_dict
@@ -215,6 +217,9 @@ class HistoryBuilder():
     
     def add_symbol_to_pg(self,symbol,dt_beg,dt_end):
         df = self.get_yahoo_data(symbol,dt_beg,dt_end)
+        if df is None or len(df)<1:
+            self.logger.warn(f'add_symbol_to_pg ERROR: no data retrieved for symbol {symbol}')
+            return
         self.write_symbol_to_pg(symbol, df)
 
     def write_symbol_to_pg(self,symbol,df):

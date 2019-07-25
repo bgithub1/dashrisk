@@ -14,6 +14,7 @@ import datetime
 import pytz
 from dashrisk import barchart_api as bcapi
 from dashrisk import option_models as opmod
+from dashrisk import logger_init as li
 from scipy.stats import norm
 from pandas_datareader import data as web
 
@@ -154,7 +155,10 @@ class VarModel():
     DEFAULT_DATE_COLUMN = 'date'
     
     def __init__(self,df_portfolio,history_fetcher=None,dt_beg=None,dt_end=None,
-                 price_column=None,date_column=None,bars_per_day=1,options_model=None,rate_model=None,reference_symbol=None):
+                 price_column=None,date_column=None,bars_per_day=1,
+                 options_model=None,rate_model=None,reference_symbol=None,
+                 logger=None):
+        self.logger = li.init_root_logger('logfile.log', 'INFO') if logger is None else logger
         self.price_column = VarModel.DEFAULT_PRICE_COLUMN if price_column is None else price_column
         self.date_column = VarModel.DEFAULT_DATE_COLUMN if date_column is None else date_column        
         self.reference_symbol = 'SPY' if reference_symbol is None else reference_symbol
@@ -178,7 +182,12 @@ class VarModel():
         symbols = list(set(self.df_portfolio.underlying.as_matrix().reshape(-1)))
         history_dict = {}
         for symbol in set(symbols):
-            history_dict[symbol] = self.history_fetcher.fetch_history(symbol, self.dt_beg, self.dt_end)
+            try:
+                history_dict[symbol] = self.history_fetcher.fetch_history(symbol, self.dt_beg, self.dt_end)
+            except Exception as e:
+                self.logger.warn(str(e))
+                # dynamically adjust bad symbol out of the portfolio
+                self.df_portfolio = self.df_portfolio[self.df_portfolio.underlying!=symbol]
         return history_dict
 
     def get_reference_index_current_price(self):
