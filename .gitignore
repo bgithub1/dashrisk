@@ -5,3 +5,4 @@ fnames.csv
 temp*.csv
 *.pyc
 .ipynb_checkpoints
+*.ipynb-e
