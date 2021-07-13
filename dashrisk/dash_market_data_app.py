@@ -26,7 +26,9 @@ import base64
 import datetime
 import pytz
 import io 
-import pandas_datareader.data as pdr
+# import pandas_datareader.data as pdr
+
+import yfinance as yf
 from datetime import tzinfo
 
 # Step 1: Define the app 
@@ -208,7 +210,8 @@ def get_df(symbol):
     try:
         dt_end = datetime.datetime.now()
         dt_beg = dt_end - datetime.timedelta(365*10)         
-        df = pdr.DataReader(symbol, 'yahoo', dt_beg, dt_end)
+#         df = pdr.DataReader(symbol, 'yahoo', dt_beg, dt_end)
+        df = yf.download(symbol,dt_beg,dt_end)
     except Exception as e:
         try:                    
             df = pd.read_csv('./marketdata/%s.csv' %(symbol))

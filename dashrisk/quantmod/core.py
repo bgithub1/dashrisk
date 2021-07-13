@@ -8,8 +8,8 @@ from __future__ import absolute_import
 
 import six
 import datetime as dt
-import pandas_datareader.data as web
-
+# import pandas_datareader.data as web
+import yfinance as yf
 from .chart import Chart
 
 
@@ -88,7 +88,8 @@ def get_symbol(ticker, src='yahoo', start='01/01/2010',
         raise TypeError("Invalid to_frame '{0}'. "
                         "It should be bool.".format(to_frame))
 
-    symbols = web.DataReader(ticker, data_source=src, start=start, end=end)
+#     symbols = web.DataReader(ticker, data_source=src, start=start, end=end)
+    symbols = yf.download(ticker, start=start, end=end)
 
     if not to_frame:
         symbols = Chart(symbols, ticker=ticker, src=src, start=start, end=end)
