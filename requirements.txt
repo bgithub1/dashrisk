@@ -11,7 +11,8 @@ pandas==0.22.0
 six==1.11.0
 scipy==1.1.0
 plotly==3.3.0
-Flask==1.0.2
+# Flask==1.0.2
+Flask
 dash_html_components==0.13.5
 dash==0.38.0rc1
 torch==1.0.1.post2
