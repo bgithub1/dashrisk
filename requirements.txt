@@ -15,5 +15,5 @@ plotly==3.3.0
 Flask
 dash_html_components==0.13.5
 dash==0.38.0rc1
-torch==1.0.1.post2
+torch==1.13.1
 pandas_datareader==0.7.0
